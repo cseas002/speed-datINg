@@ -96,7 +96,7 @@ export async function deleteAdminSession(token: string) {
   await prisma.adminSession.deleteMany({ where: { token } })
 }
 
-export async function verifyAdminPassword(password: string): boolean {
+export async function verifyAdminPassword(password: string): Promise<boolean> {
   const adminPassword = process.env.ADMIN_PASSWORD
   if (!adminPassword) {
     throw new Error('ADMIN_PASSWORD not configured')

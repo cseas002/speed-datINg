@@ -1,9 +1,10 @@
 'use client'
 
+import { Suspense } from 'react'
 import { useEffect, useState } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 
-export default function AdminCallback() {
+function AdminCallbackContent() {
     const router = useRouter()
     const searchParams = useSearchParams()
     const [status, setStatus] = useState('Logging in...')
@@ -43,5 +44,13 @@ export default function AdminCallback() {
                 <div className="animate-spin h-8 w-8 border-4 border-blue-500 border-transparent border-t-blue-500 rounded-full mx-auto"></div>
             </div>
         </div>
+    )
+}
+
+export default function AdminCallback() {
+    return (
+        <Suspense fallback={<div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-500 to-indigo-500"><div className="text-white text-lg">Loading...</div></div>}>
+            <AdminCallbackContent />
+        </Suspense>
     )
 }

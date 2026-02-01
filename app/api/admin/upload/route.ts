@@ -60,7 +60,12 @@ export async function POST(request: Request) {
 
         // Filter for arrived participants only
         const arrivedParticipants = data.filter(
-            (row) => row.Arrived?.toLowerCase() === 'yes' || row.Arrived === true
+            (row) => {
+                if (typeof row.Arrived === 'string') {
+                    return row.Arrived.toLowerCase() === 'yes'
+                }
+                return row.Arrived === true
+            }
         )
 
         if (arrivedParticipants.length === 0) {
