@@ -13,8 +13,15 @@ export async function POST(request: Request) {
             )
         }
 
-        const allowedAdminEmail = 'christoforosseas@gmail.com'
-        if (email.toLowerCase() !== allowedAdminEmail) {
+        const allowedAdminEmail = process.env.ADMIN_EMAIL
+        if (!allowedAdminEmail) {
+            return NextResponse.json(
+                { error: 'ADMIN_EMAIL not configured' },
+                { status: 500 }
+            )
+        }
+
+        if (email.toLowerCase() !== allowedAdminEmail.toLowerCase()) {
             return NextResponse.json(
                 { error: 'Unauthorized admin email' },
                 { status: 403 }

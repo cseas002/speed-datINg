@@ -4,7 +4,7 @@ An AI-powered Next.js application for speed dating events that matches participa
 
 ## Features
 
-- **Email-only login** for participants (no password required)
+- **Email + password login** for participants
 - **Password-protected admin panel** for event management
 - **Excel file upload** with automatic participant data import
 - **AI-powered matching** using DeepSeek LLM that generates top 7 matches per person with reasoning
@@ -25,6 +25,10 @@ npm install
 DATABASE_URL="postgresql://user:password@ep-xxxx.us-east-1.neon.tech/dbname?sslmode=require"
 DEEPSEEK_API_KEY="your-openrouter-api-key-here"
 ADMIN_PASSWORD="your-secure-password-here"
+GMAIL_ADDRESS="your-gmail-address"
+GMAIL_PASSWORD="your-gmail-app-password"
+GMAIL_NAME="Speed Dating App"
+NEXT_PUBLIC_APP_URL="http://localhost:3000"
 SESSION_SECRET="your-random-secret-key-here"
 ```
 
@@ -39,6 +43,9 @@ npm run dev
 ```
 
 Open [http://localhost:3000](http://localhost:3000) to get started.
+
+### Admin Login Note
+The allowed admin email is currently defined in as an environment variable. Update it to match the email you will use for admin access.
 
 This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
 

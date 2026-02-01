@@ -7,7 +7,7 @@ This is an AI-powered speed dating platform built with Next.js that:
 2. **Filters for attendees** only (those who marked "Arrived: Yes")
 3. **Uses AI (DeepSeek)** to match people respecting sex preferences
 4. **Ranks matches 1-7** for each person with personalized reasoning
-5. **Lets users login with email** (no password) to view their matches
+5. **Lets users login with email + password** to view their matches
 6. **Users can rate their dates** post-event
 7. **Admin publishes LLM reasoning** when ready
 
@@ -49,6 +49,17 @@ DEEPSEEK_API_KEY="sk-or-v1-xxxxxxxxxxxxxxxx"
 # Admin password for the admin panel
 ADMIN_PASSWORD="choose-a-strong-password"
 
+# Allowed admin email for the admin panel
+ADMIN_EMAIL="admin@example.com"
+
+# Gmail for sending participant passwords
+GMAIL_ADDRESS="your-gmail-address"
+GMAIL_PASSWORD="your-gmail-app-password"
+GMAIL_NAME="Speed Dating App"
+
+# Public app URL (used in emails)
+NEXT_PUBLIC_APP_URL="http://localhost:3000"
+
 # Random secret for sessions
 SESSION_SECRET="$(openssl rand -hex 32)"
 ```
@@ -74,7 +85,8 @@ The app should now be running at `http://localhost:3000`
 
 ### Admin Workflow
 
-1. **Login**: Go to `/admin` and enter `ADMIN_PASSWORD`
+1. **Login**: Go to `/admin` and enter your admin email + `ADMIN_PASSWORD`
+   - The allowed admin email is read from `ADMIN_EMAIL` in `.env.local`
 
 2. **Upload Excel File**:
    - Prepare Excel with columns: Name, Email, Age, Sex, Partner sex preference, About Me, Looking For, Personality, Arrived
@@ -95,9 +107,8 @@ The app should now be running at `http://localhost:3000`
 
 ### User Workflow
 
-1. **Login**: Visit `/` and enter your email
-   - You'll see a temporary token in the message
-   - In production, you'd get an email link; for testing, use: `/auth/callback?token=[token]`
+1. **Login**: Visit `/` and enter your email + password
+   - Participants typically receive a temporary password from the admin
 
 2. **View Matches**: See your top 7 matches ranked by AI
    - Each match shows: name, age, about them, what they want
@@ -154,6 +165,7 @@ Mike Davis,mike@example.com,30,male,female,"Tech enthusiast, coffee lover","Inte
 - `POST /api/admin/upload` → Upload Excel file
 - `POST /api/admin/match` → Run AI matching
 - `POST /api/admin/publish` → Publish/hide explanations
+- `POST /api/admin/send-passwords` → Send temporary passwords
 
 ---
 
