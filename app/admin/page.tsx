@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
+import Image from 'next/image'
 
 export default function AdminLogin() {
     const router = useRouter()
@@ -40,14 +41,31 @@ export default function AdminLogin() {
     }
 
     return (
-        <main className="min-h-screen bg-gradient-to-br from-blue-500 to-indigo-500 flex items-center justify-center p-4">
-            <div className="bg-white rounded-lg shadow-2xl p-8 w-full max-w-md">
+        <main className="min-h-screen bg-gradient-to-br from-rose-400 via-pink-500 to-fuchsia-600 flex items-center justify-center p-4">
+            <div className="bg-white/90 backdrop-blur rounded-2xl shadow-2xl p-8 w-full max-w-md border border-pink-100">
+                <div className="flex items-center justify-center gap-3 mb-4">
+                    <Image
+                        src="/IN-logo.png"
+                        alt="International Committee"
+                        width={48}
+                        height={48}
+                        className="object-contain"
+                        priority
+                    />
+                    <span className="text-lg font-semibold text-pink-600">International Committee</span>
+                </div>
                 <h1 className="text-3xl font-bold text-center text-gray-800 mb-2">
                     🔐 Admin Panel
                 </h1>
-                <p className="text-center text-black mb-8">
+                <p className="text-center text-black mb-6">
                     Speed Dating Event Management
                 </p>
+
+                <div className="flex items-center justify-center gap-2 mb-6 text-pink-500">
+                    <span aria-hidden className="text-lg">♥</span>
+                    <span className="text-sm font-semibold">Love powered logistics</span>
+                    <span aria-hidden className="text-lg">♥</span>
+                </div>
 
                 <form onSubmit={handleLogin} className="space-y-4">
                     <div>
@@ -59,7 +77,7 @@ export default function AdminLogin() {
                             value={email}
                             onChange={(e) => setEmail(e.target.value)}
                             placeholder="admin@example.com"
-                            className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-black bg-white placeholder:text-gray-400"
+                            className="w-full px-4 py-2 border border-pink-200 rounded-lg focus:ring-2 focus:ring-pink-500 focus:border-transparent text-black bg-white placeholder:text-gray-400"
                             required
                         />
                     </div>
@@ -73,7 +91,7 @@ export default function AdminLogin() {
                             value={password}
                             onChange={(e) => setPassword(e.target.value)}
                             placeholder="Enter your password"
-                            className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-black bg-white placeholder:text-gray-400"
+                            className="w-full px-4 py-2 border border-pink-200 rounded-lg focus:ring-2 focus:ring-pink-500 focus:border-transparent text-black bg-white placeholder:text-gray-400"
                             required
                         />
                     </div>
@@ -81,9 +99,9 @@ export default function AdminLogin() {
                     <button
                         type="submit"
                         disabled={loading}
-                        className="w-full bg-blue-500 hover:bg-blue-600 disabled:bg-gray-400 text-white font-bold py-2 px-4 rounded-lg transition duration-200"
+                        className="w-full bg-pink-500 hover:bg-pink-600 disabled:bg-gray-400 text-white font-bold py-2 px-4 rounded-lg transition duration-200"
                     >
-                        {loading ? 'Logging in...' : 'Admin Login'}
+                        {loading ? 'Logging in...' : 'Admin Login 💗'}
                     </button>
                 </form>
 
@@ -93,10 +111,10 @@ export default function AdminLogin() {
                     </div>
                 )}
 
-                <div className="mt-6 pt-6 border-t border-gray-200">
+                <div className="mt-6 pt-6 border-t border-pink-100">
                     <Link
                         href="/"
-                        className="w-full block text-center bg-gray-200 hover:bg-gray-300 text-gray-800 font-bold py-2 px-4 rounded-lg transition"
+                        className="w-full block text-center bg-pink-100 hover:bg-pink-200 text-pink-900 font-bold py-2 px-4 rounded-lg transition"
                     >
                         Back to Login
                     </Link>

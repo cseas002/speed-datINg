@@ -53,7 +53,7 @@ export default function Dashboard() {
     const [matches, setMatches] = useState<Match[]>([])
     const [dates, setDates] = useState<DateEntry[]>([])
     const [rankings, setRankings] = useState<UserRanking[]>([])
-    const [tab, setTab] = useState<'profile' | 'ranking' | 'ai'>('profile')
+    const [tab, setTab] = useState<'profile' | 'ranking' | 'ai' | 'results'>('profile')
     const [loading, setLoading] = useState(true)
     const [isSidebarOpen, setIsSidebarOpen] = useState(false)
     const [isPublished, setIsPublished] = useState(false)
@@ -200,6 +200,75 @@ export default function Dashboard() {
         }
     }
 
+    const downloadResultsCSV = () => {
+        // Create mapping of participant IDs to names for both rankings
+        const userRankingMap: Record<string, number> = {}
+        const aiRankingMap: Record<string, number> = {}
+        const nameMap: Record<string, string> = {}
+
+        // Build user ranking map
+        datedParticipants.forEach(({ partner, score }) => {
+            userRankingMap[partner.id] = score
+            nameMap[partner.id] = partner.name
+        })
+
+        // Build AI ranking map
+        matches.forEach(match => {
+            aiRankingMap[match.toId] = match.rank
+            nameMap[match.toId] = match.to.name
+        })
+
+        // Combine all participants
+        const allIds = new Set([...Object.keys(userRankingMap), ...Object.keys(aiRankingMap)])
+        const rows: string[] = []
+        rows.push('Name,Your Ranking,Your Score,Your Description,AI Ranking,AI Description')
+
+        // Sort by your ranking first, then by AI ranking
+        const sortedIds = Array.from(allIds).sort((a, b) => {
+            const yourRankA = userRankingMap[a]
+            const yourRankB = userRankingMap[b]
+            if (yourRankA !== undefined && yourRankB !== undefined) {
+                return yourRankB - yourRankA // Higher score first
+            }
+            const aiRankA = aiRankingMap[a]
+            const aiRankB = aiRankingMap[b]
+            if (aiRankA !== undefined && aiRankB !== undefined) {
+                return aiRankA - aiRankB // Lower rank number first
+            }
+            return 0
+        })
+
+        sortedIds.forEach(id => {
+            const name = nameMap[id]
+            const yourScore = userRankingMap[id]
+            const yourRank = Object.values(userRankingMap)
+                .sort((a, b) => b - a)
+                .indexOf(yourScore) + 1
+            const aiRank = aiRankingMap[id]
+            const yourDesc = rankingNotes[id] || ''
+            const aiMatch = matches.find(m => m.toId === id)
+            const aiDesc = aiMatch?.reasoning || ''
+
+            const yourRankStr = yourScore !== undefined ? yourRank.toString() : 'N/A'
+            const yourScoreStr = yourScore !== undefined ? yourScore.toString() : 'N/A'
+            const aiRankStr = aiRank !== undefined ? aiRank.toString() : 'N/A'
+
+            const escapeCsv = (str: string) => `"${(str || '').replace(/"/g, '""')}"`
+            rows.push(`${escapeCsv(name)},${yourRankStr},${yourScoreStr},${escapeCsv(yourDesc)},${aiRankStr},${escapeCsv(aiDesc)}`)
+        })
+
+        const csv = rows.join('\n')
+        const blob = new Blob([csv], { type: 'text/csv' })
+        const url = window.URL.createObjectURL(blob)
+        const a = document.createElement('a')
+        a.href = url
+        a.download = `speed-dating-results-${new Date().toISOString().split('T')[0]}.csv`
+        document.body.appendChild(a)
+        a.click()
+        window.URL.revokeObjectURL(url)
+        document.body.removeChild(a)
+    }
+
     if (loading) {
         return <div className="min-h-screen flex items-center justify-center">Loading...</div>
     }
@@ -209,10 +278,18 @@ export default function Dashboard() {
     }
 
     return (
-        <div className="min-h-screen bg-gray-50 flex flex-col md:flex-row">
+        <div className="min-h-screen bg-gradient-to-br from-rose-50 via-pink-50 to-fuchsia-100 flex flex-col md:flex-row">
             {/* Mobile Header */}
-            <div className="md:hidden bg-white shadow p-4 flex justify-between items-center">
+            <div className="md:hidden bg-white/90 backdrop-blur shadow p-4 flex justify-between items-center">
                 <div className="flex items-center gap-2">
+                    <Image
+                        src="/IN-logo.png"
+                        alt="International Committee"
+                        width={30}
+                        height={30}
+                        className="object-contain"
+                        priority
+                    />
                     <Image
                         src="/speed-dating-logo.png"
                         alt="Speed Dating"
@@ -221,11 +298,11 @@ export default function Dashboard() {
                         className="object-contain"
                         priority
                     />
-                    <h1 className="text-2xl font-bold text-purple-600">Speed Dating</h1>
+                    <h1 className="text-2xl font-bold text-pink-600">Speed Dating</h1>
                 </div>
                 <button
                     onClick={() => setIsSidebarOpen(!isSidebarOpen)}
-                    className="text-gray-600 text-2xl"
+                    className="text-pink-600 text-2xl"
                 >
                     ☰
                 </button>
@@ -234,18 +311,24 @@ export default function Dashboard() {
             {/* Sidebar */}
             <div
                 className={`${isSidebarOpen ? 'block' : 'hidden'
-                    } md:block md:w-64 bg-white shadow-lg p-6 md:min-h-screen`}
+                    } md:block md:w-64 bg-white/90 backdrop-blur shadow-lg p-6 md:min-h-screen`}
             >
-                <div className="hidden md:flex items-center gap-3 mb-8">
-                    <Image
-                        src="/speed-dating-logo.png"
-                        alt="Speed Dating"
-                        width={40}
-                        height={40}
-                        className="object-contain"
-                        priority
-                    />
-                    <h2 className="text-2xl font-bold text-purple-600">Speed Dating</h2>
+                <div className="hidden md:flex flex-col gap-3 mb-8">
+                    <div className="flex items-center gap-3">
+                        <Image
+                            src="/IN-logo.png"
+                            alt="International Committee"
+                            width={32}
+                            height={32}
+                            className="object-contain"
+                            priority
+                        />
+                        <span className="text-sm font-semibold uppercase tracking-[0.2em] text-pink-500">
+                            International Committee
+                        </span>
+                    </div>
+                    <h2 className="text-2xl font-bold text-pink-600">Speed Dating</h2>
+                    <p className="text-sm text-pink-500">Kindness first, sparks always 💗</p>
                 </div>
 
                 <nav className="space-y-2">
@@ -255,8 +338,8 @@ export default function Dashboard() {
                             setIsSidebarOpen(false)
                         }}
                         className={`w-full text-left px-4 py-3 rounded-lg font-medium transition ${tab === 'profile'
-                            ? 'bg-purple-100 text-purple-700'
-                            : 'text-gray-700 hover:bg-gray-100'
+                            ? 'bg-pink-100 text-pink-700'
+                            : 'text-gray-700 hover:bg-pink-50'
                             }`}
                     >
                         👤 About Me
@@ -269,8 +352,8 @@ export default function Dashboard() {
                                 setIsSidebarOpen(false)
                             }}
                             className={`w-full text-left px-4 py-3 rounded-lg font-medium transition ${tab === 'ai'
-                                ? 'bg-purple-100 text-purple-700'
-                                : 'text-gray-700 hover:bg-gray-100'
+                                ? 'bg-pink-100 text-pink-700'
+                                : 'text-gray-700 hover:bg-pink-50'
                                 }`}
                         >
                             🤖 AI Rankings
@@ -284,19 +367,34 @@ export default function Dashboard() {
                                 setIsSidebarOpen(false)
                             }}
                             className={`w-full text-left px-4 py-3 rounded-lg font-medium transition ${tab === 'ranking'
-                                ? 'bg-purple-100 text-purple-700'
-                                : 'text-gray-700 hover:bg-gray-100'
+                                ? 'bg-pink-100 text-pink-700'
+                                : 'text-gray-700 hover:bg-pink-50'
                                 }`}
                         >
                             ⭐ My Ranking
                         </button>
                     )}
+
+                    {dates.length > 0 && isPublished && (
+                        <button
+                            onClick={() => {
+                                setTab('results')
+                                setIsSidebarOpen(false)
+                            }}
+                            className={`w-full text-left px-4 py-3 rounded-lg font-medium transition ${tab === 'results'
+                                ? 'bg-pink-100 text-pink-700'
+                                : 'text-gray-700 hover:bg-pink-50'
+                                }`}
+                        >
+                            📊 Results
+                        </button>
+                    )}
                 </nav>
 
-                <div className="mt-8 pt-6 border-t border-gray-200">
+                <div className="mt-8 pt-6 border-t border-pink-100">
                     <Link
                         href="/"
-                        className="w-full block text-center bg-red-500 hover:bg-red-600 text-white font-bold py-2 px-4 rounded-lg transition"
+                        className="w-full block text-center bg-pink-500 hover:bg-pink-600 text-white font-bold py-2 px-4 rounded-lg transition"
                     >
                         Logout
                     </Link>
@@ -307,9 +405,10 @@ export default function Dashboard() {
             <div className="flex-1 p-4 md:p-8">
                 {tab === 'profile' && (
                     <div className="max-w-2xl">
-                        <h2 className="text-3xl font-bold text-gray-800 mb-6">About {user.name}</h2>
+                        <h2 className="text-3xl font-bold text-gray-800 mb-2">About {user.name}</h2>
+                        <p className="text-pink-600 mb-6">Your sweetest self, on display 💞</p>
 
-                        <div className="bg-white rounded-lg shadow-lg p-8 space-y-6">
+                        <div className="bg-white/90 backdrop-blur rounded-2xl shadow-lg p-8 space-y-6 border border-pink-100">
                             <div className="grid grid-cols-2 gap-4">
                                 <div>
                                     <p className="text-sm text-gray-600">Name</p>
@@ -349,23 +448,24 @@ export default function Dashboard() {
 
                 {tab === 'ai' && isPublished && (
                     <div className="max-w-4xl">
-                        <h2 className="text-3xl font-bold text-gray-800 mb-6">AI Rankings</h2>
+                        <h2 className="text-3xl font-bold text-gray-800 mb-2">AI Rankings</h2>
+                        <p className="text-pink-600 mb-6">Thoughtful matches curated with care 💗</p>
 
                         {matches.length === 0 ? (
-                            <div className="bg-white rounded-lg shadow-lg p-8 text-center text-gray-600">
+                            <div className="bg-white/90 backdrop-blur rounded-2xl shadow-lg p-8 text-center text-gray-600 border border-pink-100">
                                 No AI rankings yet. Check back later!
                             </div>
                         ) : (
                             <div className="grid gap-4">
-                                {matches.map((match, index) => (
-                                    <div key={match.id} className="bg-white rounded-lg shadow-lg p-6 border-l-4 border-purple-500">
+                                {matches.map((match) => (
+                                    <div key={match.id} className="bg-white/90 backdrop-blur rounded-2xl shadow-lg p-6 border-l-4 border-pink-500">
                                         <div className="flex justify-between items-start mb-4">
                                             <div>
                                                 <h3 className="text-2xl font-bold text-gray-800">{match.to.name}</h3>
                                                 <p className="text-gray-600">{match.to.age} years old • {match.to.sex}</p>
                                             </div>
                                             <div className="text-right">
-                                                <p className="text-3xl font-bold text-purple-600">#{match.rank}</p>
+                                                <p className="text-3xl font-bold text-pink-600">#{match.rank}</p>
                                                 <p className="text-sm text-gray-600">Ranking</p>
                                             </div>
                                         </div>
@@ -390,17 +490,17 @@ export default function Dashboard() {
 
                 {tab === 'ranking' && (
                     <div className="max-w-4xl">
-                        <h2 className="text-3xl font-bold text-gray-800 mb-6">Rate Your Dates</h2>
-                        <p className="text-gray-600 mb-6">Rate the people you dated in time-slot order.</p>
+                        <h2 className="text-3xl font-bold text-gray-800 mb-2">Rate Your Dates</h2>
+                        <p className="text-pink-600 mb-6">Rate the people you dated, with kindness.</p>
 
                         {datedParticipants.length === 0 ? (
-                            <div className="bg-white rounded-lg shadow-lg p-8 text-center text-gray-600">
+                            <div className="bg-white/90 backdrop-blur rounded-2xl shadow-lg p-8 text-center text-gray-600 border border-pink-100">
                                 No dates to rate yet.
                             </div>
                         ) : (
                             <div className="space-y-4">
                                 {datedParticipants.map(({ date, partner }) => (
-                                    <div key={date.id} className="bg-white rounded-lg shadow-lg p-6">
+                                    <div key={date.id} className="bg-white/90 backdrop-blur rounded-2xl shadow-lg p-6 border border-pink-100">
                                         <div className="flex flex-col md:flex-row md:justify-between md:items-center gap-4">
                                             <div>
                                                 <p className="text-sm text-gray-500">Date {date.timeSlot}</p>
@@ -419,9 +519,9 @@ export default function Dashboard() {
                                                     onChange={(e) =>
                                                         handleRankingChange(partner.id, parseInt(e.target.value))
                                                     }
-                                                    className="w-32"
+                                                    className="w-32 accent-pink-500"
                                                 />
-                                                <span className="text-2xl font-bold text-purple-600 min-w-12">
+                                                <span className="text-2xl font-bold text-pink-600 min-w-12">
                                                     {newRankings[partner.id] || 5}/10
                                                 </span>
                                             </div>
@@ -434,7 +534,7 @@ export default function Dashboard() {
                                             <textarea
                                                 value={rankingNotes[partner.id] || ''}
                                                 onChange={(e) => handleNoteChange(partner.id, e.target.value)}
-                                                className="w-full border border-gray-200 rounded-lg p-3 text-gray-700 focus:outline-none focus:ring-2 focus:ring-purple-200"
+                                                className="w-full border border-pink-200 rounded-lg p-3 text-gray-700 focus:outline-none focus:ring-2 focus:ring-pink-200"
                                                 rows={3}
                                                 placeholder="Add a short note about this date"
                                             />
@@ -445,13 +545,13 @@ export default function Dashboard() {
                                 <button
                                     onClick={handleSaveRankings}
                                     disabled={savingRankings}
-                                    className="w-full bg-purple-600 hover:bg-purple-700 disabled:bg-gray-400 text-white font-bold py-3 px-6 rounded-lg transition mt-6"
+                                    className="w-full bg-pink-600 hover:bg-pink-700 disabled:bg-gray-400 text-white font-bold py-3 px-6 rounded-lg transition mt-6"
                                 >
-                                    {savingRankings ? 'Saving...' : 'Save My Ratings'}
+                                    {savingRankings ? 'Saving...' : 'Save My Ratings 💖'}
                                 </button>
 
                                 <div className="mt-8 grid gap-6 md:grid-cols-2">
-                                    <div className="bg-white rounded-lg shadow-lg p-6">
+                                    <div className="bg-white/90 backdrop-blur rounded-2xl shadow-lg p-6 border border-pink-100">
                                         <h3 className="text-xl font-bold text-gray-800 mb-4">My Rankings</h3>
                                         {userRankingTable.length === 0 ? (
                                             <p className="text-gray-600">No rankings yet.</p>
@@ -478,7 +578,7 @@ export default function Dashboard() {
                                     </div>
 
                                     {isPublished && (
-                                        <div className="bg-white rounded-lg shadow-lg p-6">
+                                        <div className="bg-white/90 backdrop-blur rounded-2xl shadow-lg p-6 border border-pink-100">
                                             <h3 className="text-xl font-bold text-gray-800 mb-4">AI Rankings</h3>
                                             {aiRankingTable.length === 0 ? (
                                                 <p className="text-gray-600">AI rankings not available yet.</p>
@@ -507,6 +607,64 @@ export default function Dashboard() {
                                 </div>
                             </div>
                         )}
+                    </div>
+                )}
+
+                {tab === 'results' && dates.length > 0 && isPublished && (
+                    <div className="max-w-4xl">
+                        <h2 className="text-3xl font-bold text-gray-800 mb-2">Your Results</h2>
+                        <p className="text-pink-600 mb-6">See how your heart and the AI aligned 💕</p>
+
+                        <div className="bg-white/90 backdrop-blur rounded-2xl shadow-lg p-8 border border-pink-100">
+                            <div className="mb-6">
+                                <button
+                                    onClick={downloadResultsCSV}
+                                    className="bg-pink-600 hover:bg-pink-700 text-white font-bold py-3 px-6 rounded-lg transition flex items-center gap-2"
+                                >
+                                    <span>📥 Download Results as CSV</span>
+                                </button>
+                            </div>
+
+                            <div className="overflow-x-auto">
+                                <table className="min-w-full text-left">
+                                    <thead>
+                                        <tr className="border-b border-pink-200">
+                                            <th className="py-3 px-4 text-sm font-semibold text-gray-700">Name</th>
+                                            <th className="py-3 px-4 text-sm font-semibold text-gray-700">Your Ranking</th>
+                                            <th className="py-3 px-4 text-sm font-semibold text-gray-700">Your Score</th>
+                                            <th className="py-3 px-4 text-sm font-semibold text-gray-700">Your Description</th>
+                                            <th className="py-3 px-4 text-sm font-semibold text-gray-700">AI Ranking</th>
+                                            <th className="py-3 px-4 text-sm font-semibold text-gray-700">AI Description</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {Array.from(new Set([...Object.keys(Object.fromEntries(datedParticipants.map(d => [d.partner.id, d.partner.name]))), ...matches.map(m => m.toId)]))
+                                            .map(id => {
+                                                const userEntry = datedParticipants.find(d => d.partner.id === id)
+                                                const aiEntry = matches.find(m => m.toId === id)
+                                                const name = userEntry?.partner.name || aiEntry?.to.name || ''
+                                                const userScore = userEntry?.score
+                                                const userRank = userScore !== undefined
+                                                    ? [...new Set(datedParticipants.map(d => d.score))].sort((a, b) => b - a).indexOf(userScore) + 1
+                                                    : undefined
+                                                const aiRank = aiEntry?.rank
+
+                                                return (
+                                                    <tr key={id} className="border-b border-pink-100 hover:bg-pink-50">
+                                                        <td className="py-3 px-4 font-medium text-gray-800">{name}</td>
+                                                        <td className="py-3 px-4 text-gray-700">{userRank !== undefined ? `#${userRank}` : 'N/A'}</td>
+                                                        <td className="py-3 px-4 text-gray-700">{userScore !== undefined ? `${userScore}/10` : 'N/A'}</td>
+                                                        <td className="py-3 px-4 text-gray-700 text-sm italic">{rankingNotes[id] || '—'}</td>
+                                                        <td className="py-3 px-4 text-gray-700">{aiRank !== undefined ? `#${aiRank}` : 'N/A'}</td>
+                                                        <td className="py-3 px-4 text-gray-700 text-sm italic">{aiEntry?.reasoning || '—'}</td>
+                                                    </tr>
+                                                )
+                                            })
+                                        }
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
                     </div>
                 )}
             </div>

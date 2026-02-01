@@ -21,7 +21,7 @@ export async function POST(request: Request) {
             )
         }
 
-        // Get all participants (not matches - we'll pair them for each time slot)
+        // Get all participants
         const participants = await prisma.participant.findMany({
             orderBy: { name: 'asc' }
         })
@@ -44,57 +44,160 @@ export async function POST(request: Request) {
 
         const sessionId = latestSession?.id
 
-        // Create dates using round-robin scheduling
-        // Each participant dates different people in each time slot
+        // Build preference lists from LLM matches (top 7 per participant)
+        const matches = await prisma.match.findMany({
+            orderBy: { rank: 'asc' },
+        })
+
+        const participantMap = new Map(participants.map(p => [p.id, p]))
+        const normalizeSex = (value: string) => value.trim().toLowerCase()
+
+        const isMutuallyCompatible = (aId: string, bId: string) => {
+            const a = participantMap.get(aId)
+            const b = participantMap.get(bId)
+            if (!a || !b) return false
+            const aSex = normalizeSex(a.sex)
+            const bSex = normalizeSex(b.sex)
+            const aPref = normalizeSex(a.partnerSexPref)
+            const bPref = normalizeSex(b.partnerSexPref)
+            return aPref === bSex && bPref === aSex
+        }
+
+        const preferences: Record<string, string[]> = {}
+        for (const match of matches) {
+            if (!isMutuallyCompatible(match.fromId, match.toId)) continue
+            if (!preferences[match.fromId]) preferences[match.fromId] = []
+            if (preferences[match.fromId].length < 7) {
+                preferences[match.fromId].push(match.toId)
+            }
+        }
+
+        const women = participants.filter(p => normalizeSex(p.sex) === 'female')
+        const men = participants.filter(p => normalizeSex(p.sex) !== 'female')
+
+        const buildRankingMap = (ids: string[]) => {
+            const map: Record<string, Record<string, number>> = {}
+            for (const id of ids) {
+                const prefs = preferences[id] || []
+                const rankMap: Record<string, number> = {}
+                prefs.forEach((pid, index) => {
+                    rankMap[pid] = index
+                })
+                map[id] = rankMap
+            }
+            return map
+        }
+
+        const menPreferenceRank = buildRankingMap(men.map(p => p.id))
+
+        const usedPairs = new Set<string>()
+        const pairKey = (a: string, b: string) =>
+            a < b ? `${a}::${b}` : `${b}::${a}`
+
+        const stableMatchForSlot = (timeSlot: number) => {
+            const proposers = women.map(w => w.id)
+            const receivers = new Set(men.map(m => m.id))
+
+            const nextIndex: Record<string, number> = {}
+            const engagedTo: Record<string, string> = {}
+            const free: string[] = [...proposers]
+
+            proposers.forEach(p => (nextIndex[p] = 0))
+
+            while (free.length > 0) {
+                const proposer = free.shift()
+                if (!proposer) break
+
+                const prefs = preferences[proposer] || []
+                let proposed = false
+
+                while (nextIndex[proposer] < prefs.length) {
+                    const receiver = prefs[nextIndex[proposer]]
+                    nextIndex[proposer] += 1
+
+                    if (!receivers.has(receiver)) continue
+                    if (!isMutuallyCompatible(proposer, receiver)) continue
+                    if (usedPairs.has(pairKey(proposer, receiver))) continue
+
+                    const receiverRank = menPreferenceRank[receiver] || {}
+                    if (receiverRank[proposer] === undefined) {
+                        continue
+                    }
+
+                    proposed = true
+
+                    const current = engagedTo[receiver]
+                    if (!current) {
+                        engagedTo[receiver] = proposer
+                        break
+                    }
+
+                    const currentRank = receiverRank[current]
+                    const newRank = receiverRank[proposer]
+
+                    const prefersNew =
+                        newRank !== undefined &&
+                        (currentRank === undefined || newRank < currentRank)
+
+                    if (prefersNew) {
+                        engagedTo[receiver] = proposer
+                        free.push(current)
+                        break
+                    }
+                }
+
+                if (!proposed) {
+                    // proposer exhausted options for this slot
+                    continue
+                }
+            }
+
+            const pairs: Array<[string, string]> = []
+            for (const [receiver, proposer] of Object.entries(engagedTo)) {
+                pairs.push([proposer, receiver])
+            }
+
+            return pairs
+        }
+
+        // Create dates using stable matching (women propose) per time slot
         let totalDates = 0
         const createdDates: Array<{ participant1: string; participant2: string; timeSlot: number }> = []
-
-        // Round-robin pairing algorithm
-        const participantIds = participants.map(p => p.id)
-        const n = participantIds.length
 
         for (let timeSlot = 1; timeSlot <= 7; timeSlot++) {
             console.log(`\n--- Time Slot ${timeSlot} ---`)
 
-            // Create rotation for this time slot
-            // Rotate participants to create different pairings each round
-            const rotated = [...participantIds]
+            const pairs = stableMatchForSlot(timeSlot)
 
-            // Rotate array by (timeSlot - 1) positions
-            for (let i = 0; i < timeSlot - 1; i++) {
-                const last = rotated.pop()
-                if (last) rotated.unshift(last)
-            }
+            for (const [participant1Id, participant2Id] of pairs) {
+                const p1 = participantMap.get(participant1Id)
+                const p2 = participantMap.get(participant2Id)
 
-            // Pair participants: first with last, second with second-last, etc.
-            for (let i = 0; i < Math.floor(n / 2); i++) {
-                const participant1Id = rotated[i]
-                const participant2Id = rotated[n - 1 - i]
+                if (!p1 || !p2) continue
 
-                const p1 = participants.find(p => p.id === participant1Id)
-                const p2 = participants.find(p => p.id === participant2Id)
+                const key = pairKey(participant1Id, participant2Id)
+                if (usedPairs.has(key)) continue
 
-                if (p1 && p2) {
-                    try {
-                        await prisma.date.create({
-                            data: {
-                                participant1Id,
-                                participant2Id,
-                                timeSlot,
-                                sessionId,
-                            },
-                        })
-
-                        console.log(`✓ Created date: ${p1.name} ↔ ${p2.name} (Slot ${timeSlot})`)
-                        totalDates++
-                        createdDates.push({
-                            participant1: p1.name,
-                            participant2: p2.name,
+                try {
+                    await prisma.date.create({
+                        data: {
+                            participant1Id,
+                            participant2Id,
                             timeSlot,
-                        })
-                    } catch (err) {
-                        console.error(`Failed to create date:`, err)
-                    }
+                            sessionId,
+                        },
+                    })
+
+                    usedPairs.add(key)
+                    console.log(`✓ Created date: ${p1.name} ↔ ${p2.name} (Slot ${timeSlot})`)
+                    totalDates++
+                    createdDates.push({
+                        participant1: p1.name,
+                        participant2: p2.name,
+                        timeSlot,
+                    })
+                } catch (err) {
+                    console.error(`Failed to create date:`, err)
                 }
             }
         }
