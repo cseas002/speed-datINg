@@ -22,14 +22,28 @@ npm install
 
 ### 2. Configure `.env.local`
 ```env
-DATABASE_URL="postgresql://user:password@ep-xxxx.us-east-1.neon.tech/dbname?sslmode=require"
-DEEPSEEK_API_KEY="your-openrouter-api-key-here"
-ADMIN_PASSWORD="your-secure-password-here"
+# PostgreSQL via Neon
+DATABASE_URL="postgresql://user:password@ep-xxxx.region.neon.tech/dbname?sslmode=require"
+
+# DeepSeek API via OpenRouter
+DEEPSEEK_API_KEY="sk-or-v1-xxxxxxxxxxxxxxxx"
+
+# Admin password for the admin panel
+ADMIN_PASSWORD="choose-a-strong-password"
+
+# Allowed admin email for the admin panel
+ADMIN_EMAIL="admin@example.com"
+
+# Gmail for sending participant passwords
 GMAIL_ADDRESS="your-gmail-address"
 GMAIL_PASSWORD="your-gmail-app-password"
 GMAIL_NAME="Speed Dating App"
+
+# Public app URL (used in emails)
 NEXT_PUBLIC_APP_URL="http://localhost:3000"
-SESSION_SECRET="your-random-secret-key-here"
+
+# Random secret for sessions
+SESSION_SECRET="$(openssl rand -hex 32)"
 ```
 
 ### 3. Set Up Database
