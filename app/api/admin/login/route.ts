@@ -21,6 +21,43 @@ export async function POST(request: Request) {
             )
         }
 
+        // Check if admin exists in database
+        const existingAdminCount = await prisma.admin.count()
+
+        // If no admin exists, check credentials against env vars and auto-seed if they match
+        if (existingAdminCount === 0) {
+            const envAdminEmail = process.env.ADMIN_EMAIL
+            const envAdminPassword = process.env.ADMIN_PASSWORD
+
+            // Verify input matches env vars exactly
+            if (
+                email.toLowerCase() === envAdminEmail?.toLowerCase() &&
+                password === envAdminPassword
+            ) {
+                // Auto-seed admin with provided credentials
+                const seededPassword = await hashPassword(password)
+                await prisma.admin.create({
+                    data: {
+                        email: email.toLowerCase(),
+                        password: seededPassword,
+                    },
+                })
+                // Create session and return
+                const session = await createAdminSession(email)
+                return NextResponse.json({
+                    success: true,
+                    token: session.token,
+                })
+            } else {
+                // Credentials don't match env vars
+                return NextResponse.json(
+                    { error: 'Invalid email or password' },
+                    { status: 401 }
+                )
+            }
+        }
+
+        // Admin exists in database, verify email is allowed
         if (email.toLowerCase() !== allowedAdminEmail.toLowerCase()) {
             return NextResponse.json(
                 { error: 'Unauthorized admin email' },
@@ -28,29 +65,16 @@ export async function POST(request: Request) {
             )
         }
 
-        // Auto-seed admin if none exists and env vars are provided
-        const existingAdminCount = await prisma.admin.count()
-        if (existingAdminCount === 0 && process.env.ADMIN_EMAIL && process.env.ADMIN_PASSWORD) {
-            const seededEmail = process.env.ADMIN_EMAIL
-            const seededPassword = await hashPassword(process.env.ADMIN_PASSWORD)
-            await prisma.admin.create({
-                data: {
-                    email: seededEmail,
-                    password: seededPassword,
-                },
-            })
-        }
-
-        // Find or create admin user
-        let admin = await prisma.admin.findUnique({
+        // Find admin user (should exist since we checked count above)
+        const admin = await prisma.admin.findUnique({
             where: { email },
         })
 
         if (!admin) {
-            // Create new admin user if doesn't exist
-            admin = await prisma.admin.create({
-                data: { email },
-            })
+            return NextResponse.json(
+                { error: 'Admin not found' },
+                { status: 404 }
+            )
         }
 
         // Check if password is set
