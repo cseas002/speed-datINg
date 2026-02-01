@@ -52,28 +52,28 @@ export async function POST(request: Request) {
         // Round-robin pairing algorithm
         const participantIds = participants.map(p => p.id)
         const n = participantIds.length
-        
+
         for (let timeSlot = 1; timeSlot <= 7; timeSlot++) {
             console.log(`\n--- Time Slot ${timeSlot} ---`)
-            
+
             // Create rotation for this time slot
             // Rotate participants to create different pairings each round
             const rotated = [...participantIds]
-            
+
             // Rotate array by (timeSlot - 1) positions
             for (let i = 0; i < timeSlot - 1; i++) {
                 const last = rotated.pop()
                 if (last) rotated.unshift(last)
             }
-            
+
             // Pair participants: first with last, second with second-last, etc.
             for (let i = 0; i < Math.floor(n / 2); i++) {
                 const participant1Id = rotated[i]
                 const participant2Id = rotated[n - 1 - i]
-                
+
                 const p1 = participants.find(p => p.id === participant1Id)
                 const p2 = participants.find(p => p.id === participant2Id)
-                
+
                 if (p1 && p2) {
                     try {
                         await prisma.date.create({
@@ -84,7 +84,7 @@ export async function POST(request: Request) {
                                 sessionId,
                             },
                         })
-                        
+
                         console.log(`✓ Created date: ${p1.name} ↔ ${p2.name} (Slot ${timeSlot})`)
                         totalDates++
                         createdDates.push({
