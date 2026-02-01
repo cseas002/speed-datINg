@@ -1,22 +1,44 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# 💕 Speed Dating Event Matching Platform
 
-## Getting Started
+An AI-powered Next.js application for speed dating events that matches participants based on personality and preferences, tracks rankings, and provides intelligent match insights.
 
-First, run the development server:
+## Features
 
+- **Email-only login** for participants (no password required)
+- **Password-protected admin panel** for event management
+- **Excel file upload** with automatic participant data import
+- **AI-powered matching** using DeepSeek LLM that generates top 7 matches per person with reasoning
+- **Sex preference matching** to ensure compatible pairings
+- **Post-event ranking** where users rate their dates
+- **Conditional LLM insights** - admin controls when match reasoning is published
+- **Real-time dashboard** for viewing matches and updating rankings
+
+## Quick Start
+
+### 1. Install Dependencies
 ```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+npm install
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+### 2. Configure `.env.local`
+```env
+DATABASE_URL="postgresql://user:password@ep-xxxx.us-east-1.neon.tech/dbname?sslmode=require"
+DEEPSEEK_API_KEY="your-openrouter-api-key-here"
+ADMIN_PASSWORD="your-secure-password-here"
+SESSION_SECRET="your-random-secret-key-here"
+```
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+### 3. Set Up Database
+```bash
+npm run db:push
+```
+
+### 4. Run Development Server
+```bash
+npm run dev
+```
+
+Open [http://localhost:3000](http://localhost:3000) to get started.
 
 This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
 

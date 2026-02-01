@@ -1,0 +1,1 @@
+-- No-op migration (superseded by 20260201090000_add_user_ranking_note)

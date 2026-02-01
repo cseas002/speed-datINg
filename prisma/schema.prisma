@@ -1,0 +1,137 @@
+generator client {
+    provider = "prisma-client-js"
+}
+
+datasource db {
+    provider = "postgresql"
+    url      = env("DATABASE_URL")
+}
+
+model Participant {
+    id             String  @id @default(cuid())
+    email          String  @unique
+    name           String
+    age            Int
+    sex            String // "male" or "female"
+    partnerSexPref String // "male" or "female"
+    aboutMe        String  @db.Text
+    lookingFor     String  @db.Text
+    personality    String  @db.Text
+    arrived        Boolean @default(false)
+    password       String? // hashed password, null if not set
+
+    // Relations
+    matchesGenerated Match[]       @relation("matchFrom")
+    matchesReceived  Match[]       @relation("matchTo")
+    userRankings     UserRanking[] @relation("rankerToRanked")
+    datesAsP1        Date[]        @relation("dateParticipant1")
+    datesAsP2        Date[]        @relation("dateParticipant2")
+
+    createdAt DateTime @default(now())
+    updatedAt DateTime @updatedAt
+}
+
+model Match {
+    id String @id @default(cuid())
+
+    // Participant who is viewing the match
+    fromId String
+    from   Participant @relation("matchFrom", fields: [fromId], references: [id], onDelete: Cascade)
+
+    // Matched participant
+    toId String
+    to   Participant @relation("matchTo", fields: [toId], references: [id], onDelete: Cascade)
+
+    // LLM ranking info
+    rank      Int // 1-7 ranking
+    reasoning String @db.Text
+
+    // Session tracking
+    sessionId       String?
+    matchingSession MatchingSession? @relation(fields: [sessionId], references: [id])
+
+    createdAt DateTime @default(now())
+    updatedAt DateTime @updatedAt
+
+    @@unique([fromId, toId])
+}
+
+model UserRanking {
+    id String @id @default(cuid())
+
+    // User who is ranking
+    rankerId String
+    ranker   Participant @relation("rankerToRanked", fields: [rankerId], references: [id], onDelete: Cascade)
+
+    // Person being ranked
+    rankedId String
+
+    // User's ranking (1-7 or similar)
+    score Int
+
+    // Optional user description
+    note String? @db.Text
+
+    createdAt DateTime @default(now())
+    updatedAt DateTime @updatedAt
+
+    @@unique([rankerId, rankedId])
+}
+
+model MatchingSession {
+    id String @id @default(cuid())
+
+    matches     Match[]
+    dates       Date[]
+    isPublished Boolean @default(false)
+
+    createdAt DateTime @default(now())
+    updatedAt DateTime @updatedAt
+}
+
+model Date {
+    id String @id @default(cuid())
+
+    // The two participants on this date
+    participant1Id String
+    participant1   Participant @relation("dateParticipant1", fields: [participant1Id], references: [id], onDelete: Cascade)
+
+    participant2Id String
+    participant2   Participant @relation("dateParticipant2", fields: [participant2Id], references: [id], onDelete: Cascade)
+
+    // Schedule info
+    timeSlot Int // 1-7 (which date slot)
+
+    // Session tracking
+    sessionId       String?
+    matchingSession MatchingSession? @relation(fields: [sessionId], references: [id])
+
+    createdAt DateTime @default(now())
+    updatedAt DateTime @updatedAt
+
+    @@unique([participant1Id, participant2Id])
+}
+
+model Session {
+    id        String   @id @default(cuid())
+    email     String
+    token     String   @unique
+    expiresAt DateTime
+    createdAt DateTime @default(now())
+}
+
+model Admin {
+    id        String   @id @default(cuid())
+    email     String   @unique
+    password  String? // hashed password, null if not set
+    createdAt DateTime @default(now())
+    updatedAt DateTime @updatedAt
+}
+
+model AdminSession {
+    id        String   @id @default(cuid())
+    adminId   String
+    token     String   @unique
+    expiresAt DateTime
+    createdAt DateTime @default(now())
+}
