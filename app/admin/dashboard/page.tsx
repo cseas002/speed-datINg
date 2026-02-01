@@ -342,7 +342,7 @@ export default function AdminDashboard() {
 
                                     <button
                                         onClick={handleSendPasswords}
-                                        disabled={passwordsLoading || step !== 'passwords' || selectedParticipants.size === 0}
+                                        disabled={passwordsLoading || selectedParticipants.size === 0}
                                         className="bg-yellow-500 hover:bg-yellow-600 disabled:bg-gray-400 text-white font-bold py-2 px-6 rounded-lg transition"
                                     >
                                         {passwordsLoading ? 'Sending...' : `Send Passwords (${selectedParticipants.size})`}
