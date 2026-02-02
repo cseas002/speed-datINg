@@ -1,5 +1,6 @@
 # 💕 Speed Dating Event Matching Platform
 
+# Have a look at it [here](https://speed-dating-in.vercel.app/)!
 An AI-powered Next.js application for speed dating events that matches participants based on personality and preferences, tracks rankings, and provides intelligent match insights.
 
 ## Features
