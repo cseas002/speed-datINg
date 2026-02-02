@@ -50,7 +50,11 @@ export async function POST(request: Request) {
         })
 
         const participantMap = new Map(participants.map(p => [p.id, p]))
-        const normalizeSex = (value: string) => value.trim().toLowerCase()
+        const normalizeSex = (value: string | null | undefined) =>
+            (value || '').trim().toLowerCase()
+
+        const normalizeSexList = (values: string[] | null | undefined) =>
+            (values || []).map(normalizeSex).filter(Boolean)
 
         const isMutuallyCompatible = (aId: string, bId: string) => {
             const a = participantMap.get(aId)
@@ -58,9 +62,9 @@ export async function POST(request: Request) {
             if (!a || !b) return false
             const aSex = normalizeSex(a.sex)
             const bSex = normalizeSex(b.sex)
-            const aPref = normalizeSex(a.partnerSexPref)
-            const bPref = normalizeSex(b.partnerSexPref)
-            return aPref === bSex && bPref === aSex
+            const aPrefs = normalizeSexList(a.partnerSexPref)
+            const bPrefs = normalizeSexList(b.partnerSexPref)
+            return aPrefs.includes(bSex) && bPrefs.includes(aSex)
         }
 
         const preferences: Record<string, string[]> = {}

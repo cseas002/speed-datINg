@@ -10,7 +10,7 @@ interface Participant {
     name: string
     age: number
     sex: string
-    partnerSexPref: string
+    partnerSexPref: string[]
     aboutMe: string
     lookingFor: string
     personality: string
@@ -392,12 +392,15 @@ export default function Dashboard() {
                 </nav>
 
                 <div className="mt-8 pt-6 border-t border-pink-100">
-                    <Link
-                        href="/"
+                    <button
+                        onClick={async () => {
+                            await fetch('/api/auth/logout', { method: 'POST' })
+                            router.push('/')
+                        }}
                         className="w-full block text-center bg-pink-500 hover:bg-pink-600 text-white font-bold py-2 px-4 rounded-lg transition"
                     >
                         Logout
-                    </Link>
+                    </button>
                 </div>
             </div>
 
@@ -424,7 +427,7 @@ export default function Dashboard() {
                                 </div>
                                 <div>
                                     <p className="text-sm text-gray-600">Looking For</p>
-                                    <p className="text-lg font-semibold text-gray-800 capitalize">{user.partnerSexPref}</p>
+                                    <p className="text-lg font-semibold text-gray-800 capitalize">{user.partnerSexPref.join(', ')}</p>
                                 </div>
                             </div>
 

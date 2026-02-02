@@ -11,6 +11,7 @@ function AuthCallbackContent() {
 
     useEffect(() => {
         const token = searchParams.get('token')
+        const type = searchParams.get('type') || 'user'
 
         if (!token) {
             setStatus('No token provided')
@@ -21,7 +22,7 @@ function AuthCallbackContent() {
         // Verify token and set cookie
         const verifyCookie = async () => {
             try {
-                const cookieRes = await fetch('/api/auth/callback?token=' + token)
+                const cookieRes = await fetch(`/api/auth/callback?token=${token}&type=${type}`)
                 if (cookieRes.ok) {
                     router.push('/dashboard')
                 } else {

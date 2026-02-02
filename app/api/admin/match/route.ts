@@ -91,8 +91,8 @@ export async function POST(request: Request) {
             const potentialMatches = participants.filter(
                 (p) =>
                     p.id !== person.id &&
-                    p.partnerSexPref === person.sex && // They want our sex
-                    person.partnerSexPref === p.sex // We want their sex
+                    p.partnerSexPref.includes(person.sex) && // They want your sex
+                    person.partnerSexPref.includes(p.sex) // You want their sex
             )
 
             if (potentialMatches.length === 0) {
@@ -102,14 +102,21 @@ export async function POST(request: Request) {
 
             console.log(`Found ${potentialMatches.length} potential matches for ${person.name}`)
 
-            // Create prompt for matching
+            // Create anonymous mapping for privacy (don't send names to API)
+            const personId = `person_${person.id}`
+            const idToParticipantMap: { [key: string]: typeof person } = {
+                [personId]: person,
+            }
+            const potentialMatchIds = potentialMatches.map((m, idx) => `match_${idx}`)
+            potentialMatches.forEach((m, idx) => {
+                idToParticipantMap[potentialMatchIds[idx]] = m
+            })
+
+            // Create prompt for matching with anonymized IDs
             const prompt = `You are a speed dating expert. Match the following person with their top 7 most compatible matches from the list.
 
 PERSON TO MATCH:
-Name: ${person.name}
-Age: ${person.age}
-Sex: ${person.sex}
-Looking for: ${person.partnerSexPref}
+ID: ${personId}
 About: ${person.aboutMe}
 What they want: ${person.lookingFor}
 Personality: ${person.personality}
@@ -117,10 +124,8 @@ Personality: ${person.personality}
 POTENTIAL MATCHES (${potentialMatches.length} available):
 ${potentialMatches
                     .map(
-                        (m) => `
-Name: ${m.name}
-Age: ${m.age}
-Sex: ${m.sex}
+                        (m, idx) => `
+ID: ${potentialMatchIds[idx]}
 About: ${m.aboutMe}
 What they want: ${m.lookingFor}
 Personality: ${m.personality}
@@ -134,7 +139,7 @@ For each match, provide a brief reason focusing on specific compatibility points
 Return as JSON array:
 [
   {
-    "name": "person name",
+    "id": "match_0",
     "rank": 1,
     "reason": "specific compatibility reason"
   },
@@ -148,7 +153,7 @@ Return as JSON array:
                         {
                             role: 'system',
                             content:
-                                'You are a speed dating expert. Return only valid JSON array without code blocks or formatting.',
+                                'You are a speed dating expert. Return only valid JSON array without code blocks or formatting. Use the IDs provided.',
                         },
                         {
                             role: 'user',
@@ -166,7 +171,7 @@ Return as JSON array:
 
                 console.log(`Received AI response for ${person.name}`)
 
-                let matches: Array<{ name: string; rank: number; reason: string }>
+                let matches: Array<{ id: string; rank: number; reason: string }>
                 try {
                     const cleaned = cleanResponseContent(content)
                     const parsed = JSON.parse(cleaned)
@@ -185,18 +190,16 @@ Return as JSON array:
                 console.log(`Parsed ${matches.length} matches for ${person.name}`)
                 let personMatches = 0
                 for (const match of matches.slice(0, 7)) {
-                    const matchedPerson = potentialMatches.find(
-                        (p) => p.name.toLowerCase() === match.name.toLowerCase()
-                    )
+                    const matchedParticipant = idToParticipantMap[match.id]
 
-                    if (matchedPerson) {
+                    if (matchedParticipant) {
                         try {
                             // Verify both participants still exist before creating match
                             const fromExists = await prisma.participant.findUnique({
                                 where: { id: person.id }
                             })
                             const toExists = await prisma.participant.findUnique({
-                                where: { id: matchedPerson.id }
+                                where: { id: matchedParticipant.id }
                             })
 
                             if (!fromExists || !toExists) {
@@ -209,41 +212,42 @@ Return as JSON array:
                                 where: {
                                     fromId_toId: {
                                         fromId: person.id,
-                                        toId: matchedPerson.id
+                                        toId: matchedParticipant.id
                                     }
                                 }
                             })
 
                             if (existingMatch) {
-                                console.warn(`Match already exists between ${person.name} and ${matchedPerson.name}`)
+                                console.warn(`Match already exists between ${person.name} and ${matchedParticipant.name}`)
                                 continue
                             }
 
                             await prisma.match.create({
                                 data: {
                                     fromId: person.id,
-                                    toId: matchedPerson.id,
+                                    toId: matchedParticipant.id,
                                     rank: match.rank,
                                     reasoning: match.reason,
                                 },
                             })
-                            console.log(`✓ Created match: ${person.name} → ${matchedPerson.name} (rank ${match.rank})`)
+                            console.log(`✓ Created match: ${person.name} → ${matchedParticipant.name} (rank ${match.rank})`)
                             totalMatches++
                             personMatches++
                         } catch (matchError) {
-                            console.error(`Failed to create match between ${person.name} and ${matchedPerson.name}:`, matchError)
+                            console.error(`Failed to create match between ${person.name} and ${matchedParticipant.name}:`, matchError)
                             continue
                         }
                     }
                 }
 
                 if (personMatches > 0) {
+                    const topMatchName = matches[0] ? idToParticipantMap[matches[0].id]?.name || 'unknown' : null
                     matchResults.push({
                         name: person.name,
                         matchCount: personMatches,
-                        topMatch: matches[0]?.name || null
+                        topMatch: topMatchName
                     })
-                    console.log(`Summary: ${person.name} matched with ${personMatches} people (top match: ${matches[0]?.name})`)
+                    console.log(`Summary: ${person.name} matched with ${personMatches} people (top match: ${topMatchName})`)
                 }
             } catch (error) {
                 console.error(`Error matching for ${person.name}:`, error)

@@ -80,21 +80,28 @@ export async function POST(request: Request) {
 
         // Insert participants
         const created = await Promise.all(
-            arrivedParticipants.map((row) =>
-                prisma.participant.create({
+            arrivedParticipants.map((row) => {
+                // Parse sex preferences - handle "Male, Female" format
+                const sexPrefStr = row['Partner Sex Preference'] || ''
+                const sexPrefs = sexPrefStr
+                    .split(',')
+                    .map((s) => s.trim().toLowerCase())
+                    .filter((s) => s)
+
+                return prisma.participant.create({
                     data: {
                         name: row.Name || 'Unknown',
                         email: row['Email Address'],
                         age: parseInt(row.Age) || 0,
                         sex: row.Sex?.toLowerCase() || 'other',
-                        partnerSexPref: row['Partner Sex Preference']?.toLowerCase() || 'other',
+                        partnerSexPref: sexPrefs.length > 0 ? sexPrefs : ['other'],
                         aboutMe: row['About Me'] || '',
                         lookingFor: row['Looking For'] || '',
                         personality: row.Personality || '',
                         arrived: true,
                     },
                 })
-            )
+            })
         )
 
         return NextResponse.json({

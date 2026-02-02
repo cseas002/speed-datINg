@@ -8,16 +8,16 @@ datasource db {
 }
 
 model Participant {
-    id             String  @id @default(cuid())
-    email          String  @unique
+    id             String   @id @default(cuid())
+    email          String   @unique
     name           String
     age            Int
     sex            String // "male" or "female"
-    partnerSexPref String // "male" or "female"
-    aboutMe        String  @db.Text
-    lookingFor     String  @db.Text
-    personality    String  @db.Text
-    arrived        Boolean @default(false)
+    partnerSexPref String[] // array of ["male"] or ["female"] or ["male", "female"]
+    aboutMe        String   @db.Text
+    lookingFor     String   @db.Text
+    personality    String   @db.Text
+    arrived        Boolean  @default(false)
     password       String? // hashed password, null if not set
 
     // Relations
@@ -133,5 +133,14 @@ model AdminSession {
     adminId   String
     token     String   @unique
     expiresAt DateTime
+    createdAt DateTime @default(now())
+}
+
+model MagicLink {
+    id        String   @id @default(cuid())
+    email     String
+    token     String   @unique
+    expiresAt DateTime
+    used      Boolean  @default(false)
     createdAt DateTime @default(now())
 }

@@ -103,3 +103,69 @@ export async function verifyAdminPassword(password: string): Promise<boolean> {
   }
   return password === adminPassword
 }
+
+// Magic Link Management
+const MAGIC_LINK_DURATION = 5 * 60 * 60 * 1000 // 5 hours
+
+// Generate a random password
+export function generateRandomPassword(length: number = 12): string {
+  const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789!@#$%^&*'
+  let password = ''
+  for (let i = 0; i < length; i++) {
+    password += chars.charAt(Math.floor(Math.random() * chars.length))
+  }
+  return password
+}
+
+export async function createMagicLink(email: string) {
+  const token = crypto.randomBytes(32).toString('hex')
+  const expiresAt = new Date(Date.now() + MAGIC_LINK_DURATION)
+
+  // Generate a random password
+  const password = generateRandomPassword(12)
+
+  // Delete any existing unused magic links for this email
+  await prisma.magicLink.deleteMany({
+    where: { email, used: false },
+  })
+
+  // Create new magic link
+  const magicLink = await prisma.magicLink.create({
+    data: {
+      email,
+      token,
+      expiresAt,
+    },
+  })
+
+  return { magicLink, password }
+}
+
+export async function verifyMagicLink(token: string) {
+  const magicLink = await prisma.magicLink.findUnique({
+    where: { token },
+  })
+
+  if (!magicLink) {
+    return null
+  }
+
+  // Check if expired
+  if (new Date() > magicLink.expiresAt) {
+    await prisma.magicLink.delete({ where: { id: magicLink.id } })
+    return null
+  }
+
+  // Check if already used
+  if (magicLink.used) {
+    return null
+  }
+
+  // Mark as used
+  await prisma.magicLink.update({
+    where: { id: magicLink.id },
+    data: { used: true },
+  })
+
+  return magicLink
+}

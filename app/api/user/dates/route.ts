@@ -6,7 +6,7 @@ import { verifyEmailSession } from '@/lib/auth'
 export async function GET() {
     try {
         const cookieStore = await cookies()
-        const sessionToken = cookieStore.get('sessionToken')
+        const sessionToken = cookieStore.get('sessionToken') || cookieStore.get('token')
 
         if (!sessionToken?.value) {
             return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
