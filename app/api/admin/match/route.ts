@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { cookies } from 'next/headers'
 import OpenAI from 'openai'
+import { GoogleGenAI } from '@google/genai'
 import { prisma } from '@/lib/db'
 import { verifyAdminSession } from '@/lib/auth'
 
@@ -44,6 +45,7 @@ function cleanResponseContent(content: string): string {
 
 export async function POST(request: Request) {
     try {
+        const USE_GEMINI = true
         const isAdmin = await verifyAdminCookie()
         if (!isAdmin) {
             return NextResponse.json(
@@ -68,23 +70,36 @@ export async function POST(request: Request) {
         console.log('Cleared existing matches from database')
 
         const DEEPSEEK_API_KEY = process.env.DEEPSEEK_API_KEY
-        if (!DEEPSEEK_API_KEY) {
+        const GEMINI_API_KEY = process.env.GEMINI_API_KEY
+
+        if (USE_GEMINI) {
+            if (!GEMINI_API_KEY) {
+                return NextResponse.json(
+                    { error: 'Gemini API key not configured' },
+                    { status: 500 }
+                )
+            }
+        } else if (!DEEPSEEK_API_KEY) {
             return NextResponse.json(
                 { error: 'DeepSeek API key not configured' },
                 { status: 500 }
             )
         }
 
-        const openai = new OpenAI({
-            apiKey: DEEPSEEK_API_KEY,
-            baseURL: 'https://openrouter.ai/api/v1',
-        })
+        const openai = !USE_GEMINI
+            ? new OpenAI({
+                apiKey: DEEPSEEK_API_KEY,
+                baseURL: 'https://openrouter.ai/api/v1',
+            })
+            : null
+
+        const gemini = USE_GEMINI ? new GoogleGenAI({ apiKey: GEMINI_API_KEY || '' }) : null
 
         // Process each participant
         let totalMatches = 0
         const matchResults: Array<{ name: string; matchCount: number; topMatch: string | null }> = []
 
-        for (const person of participants) {
+        const processPerson = async (person: typeof participants[number]) => {
             console.log(`\n--- Generating matches for ${person.name} ---`)
 
             // Find potential matches based on sex preference
@@ -97,7 +112,7 @@ export async function POST(request: Request) {
 
             if (potentialMatches.length === 0) {
                 console.log(`No compatible potential matches for ${person.name}`)
-                continue
+                return
             }
 
             console.log(`Found ${potentialMatches.length} potential matches for ${person.name}`)
@@ -113,7 +128,7 @@ export async function POST(request: Request) {
             })
 
             // Create prompt for matching with anonymized IDs
-            const prompt = `You are a speed dating expert. Match the following person with their top 7 most compatible matches from the list.
+            const prompt = `You are a speed dating expert. Match the following person with their top 5 most compatible matches from the list.
 
 PERSON TO MATCH:
 ID: ${personId}
@@ -133,7 +148,7 @@ Personality: ${m.personality}
                     )
                     .join('\n')}
 
-Rank the top 7 matches from 1 (best match) to 7 (least compatible of the top 7).
+Rank the top 5 matches from 1 (best match) to 5 (least compatible of the top 5).
 For each match, provide a brief reason focusing on specific compatibility points.
 
 Return as JSON array:
@@ -147,53 +162,106 @@ Return as JSON array:
 ]`
 
             try {
-                const completion = await openai.chat.completions.create({
-                    model: 'tngtech/deepseek-r1t2-chimera:free',
-                    messages: [
-                        {
-                            role: 'system',
-                            content:
-                                'You are a speed dating expert. Return only valid JSON array without code blocks or formatting. Use the IDs provided.',
-                        },
-                        {
-                            role: 'user',
-                            content: prompt,
-                        },
-                    ],
-                    response_format: { type: 'json_object' },
-                })
+                const maxAttempts = 3
+                let matches: Array<{ id: string; rank: number; reason: string }> = []
 
-                const content = completion.choices[0].message?.content
-                if (!content) {
-                    console.warn(`No response from AI for ${person.name}`)
-                    continue
+                for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+                    let content: string | null | undefined
+
+                    if (USE_GEMINI && gemini) {
+                        const response = await gemini.models.generateContent({
+                            model: 'gemma-3-27b-it',
+                            contents:
+                                'You are a speed dating expert. Return only valid JSON array without code blocks or formatting. Use the IDs provided.\n\n' +
+                                prompt,
+                        })
+                        content = response.text ?? undefined
+                    } else if (openai) {
+                        const completion = await openai.chat.completions.create({
+                            model: 'tngtech/deepseek-r1t2-chimera:free',
+                            messages: [
+                                {
+                                    role: 'system',
+                                    content:
+                                        'You are a speed dating expert. Return only valid JSON array without code blocks or formatting. Use the IDs provided.',
+                                },
+                                {
+                                    role: 'user',
+                                    content: prompt,
+                                },
+                            ],
+                            response_format: { type: 'json_object' },
+                        })
+
+                        content = completion.choices[0].message?.content
+                    }
+                    if (!content) {
+                        console.warn(`No response from AI for ${person.name} (attempt ${attempt})`)
+                        continue
+                    }
+
+                    console.log(`Received AI response for ${person.name} (attempt ${attempt})`)
+
+                    try {
+                        const cleaned = cleanResponseContent(content)
+                        const parsed = JSON.parse(cleaned)
+                        // Handle case where response is wrapped in object
+                        matches = Array.isArray(parsed) ? parsed : parsed.matches || parsed.recommendations || []
+                    } catch {
+                        console.error('Failed to parse AI response:', content)
+                        matches = []
+                    }
+
+                    if (Array.isArray(matches) && matches.length >= 5) {
+                        break
+                    }
+
+                    if (!Array.isArray(matches) || matches.length === 0) {
+                        console.warn(`No valid matches found for ${person.name} (attempt ${attempt})`)
+                    } else {
+                        console.warn(`Only ${matches.length} matches found for ${person.name} (attempt ${attempt})`)
+                    }
                 }
 
-                console.log(`Received AI response for ${person.name}`)
-
-                let matches: Array<{ id: string; rank: number; reason: string }>
-                try {
-                    const cleaned = cleanResponseContent(content)
-                    const parsed = JSON.parse(cleaned)
-                    // Handle case where response is wrapped in object
-                    matches = Array.isArray(parsed) ? parsed : parsed.matches || parsed.recommendations || []
-                } catch {
-                    console.error('Failed to parse AI response:', content)
-                    continue
+                if (!Array.isArray(matches)) {
+                    matches = []
                 }
 
-                if (!Array.isArray(matches) || matches.length === 0) {
+                const uniqueMatches: Array<{ id: string; rank: number; reason: string }> = []
+                const seenIds = new Set<string>()
+                for (const match of matches) {
+                    if (!match?.id || seenIds.has(match.id)) continue
+                    if (!idToParticipantMap[match.id]) continue
+                    seenIds.add(match.id)
+                    uniqueMatches.push(match)
+                }
+
+                if (uniqueMatches.length < 5) {
+                    const fallbackIds = potentialMatchIds.filter(id => !seenIds.has(id))
+                    for (const fallbackId of fallbackIds) {
+                        if (uniqueMatches.length >= 5) break
+                        uniqueMatches.push({
+                            id: fallbackId,
+                            rank: uniqueMatches.length + 1,
+                            reason: 'Fallback selection based on mutual compatibility.',
+                        })
+                        seenIds.add(fallbackId)
+                    }
+                }
+
+                if (uniqueMatches.length === 0) {
                     console.warn(`No valid matches found for ${person.name}`)
-                    continue
+                    return
                 }
 
-                console.log(`Parsed ${matches.length} matches for ${person.name}`)
+                console.log(`Parsed ${uniqueMatches.length} matches for ${person.name}`)
                 let personMatches = 0
-                for (const match of matches.slice(0, 7)) {
+                for (const [index, match] of uniqueMatches.slice(0, 5).entries()) {
                     const matchedParticipant = idToParticipantMap[match.id]
 
                     if (matchedParticipant) {
                         try {
+                            const resolvedRank = Number.isFinite(match.rank) ? match.rank : index + 1
                             // Verify both participants still exist before creating match
                             const fromExists = await prisma.participant.findUnique({
                                 where: { id: person.id }
@@ -226,11 +294,11 @@ Return as JSON array:
                                 data: {
                                     fromId: person.id,
                                     toId: matchedParticipant.id,
-                                    rank: match.rank,
+                                    rank: resolvedRank,
                                     reasoning: match.reason,
                                 },
                             })
-                            console.log(`✓ Created match: ${person.name} → ${matchedParticipant.name} (rank ${match.rank})`)
+                            console.log(`✓ Created match: ${person.name} → ${matchedParticipant.name} (rank ${resolvedRank})`)
                             totalMatches++
                             personMatches++
                         } catch (matchError) {
@@ -241,7 +309,7 @@ Return as JSON array:
                 }
 
                 if (personMatches > 0) {
-                    const topMatchName = matches[0] ? idToParticipantMap[matches[0].id]?.name || 'unknown' : null
+                    const topMatchName = uniqueMatches[0] ? idToParticipantMap[uniqueMatches[0].id]?.name || 'unknown' : null
                     matchResults.push({
                         name: person.name,
                         matchCount: personMatches,
@@ -251,7 +319,23 @@ Return as JSON array:
                 }
             } catch (error) {
                 console.error(`Error matching for ${person.name}:`, error)
-                continue
+                return
+            }
+        }
+
+        if (USE_GEMINI) {
+            const RATE_LIMIT_PER_MIN = 30
+            const MIN_DELAY_MS = Math.ceil(60000 / RATE_LIMIT_PER_MIN)
+            const tasks = participants.map((person, index) =>
+                (async () => {
+                    await new Promise(resolve => setTimeout(resolve, index * MIN_DELAY_MS))
+                    await processPerson(person)
+                })()
+            )
+            await Promise.all(tasks)
+        } else {
+            for (const person of participants) {
+                await processPerson(person)
             }
         }
 

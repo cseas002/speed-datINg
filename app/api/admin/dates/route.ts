@@ -164,14 +164,49 @@ export async function POST(request: Request) {
             return pairs
         }
 
+        const addFallbackPairs = (existingPairs: Array<[string, string]>) => {
+            const matchedIds = new Set<string>()
+            existingPairs.forEach(([a, b]) => {
+                matchedIds.add(a)
+                matchedIds.add(b)
+            })
+
+            const remaining = participants
+                .map(p => p.id)
+                .filter(id => !matchedIds.has(id))
+
+            const newPairs: Array<[string, string]> = []
+            const usedInFallback = new Set<string>()
+
+            for (let i = 0; i < remaining.length; i++) {
+                const a = remaining[i]
+                if (usedInFallback.has(a)) continue
+
+                for (let j = i + 1; j < remaining.length; j++) {
+                    const b = remaining[j]
+                    if (usedInFallback.has(b)) continue
+                    if (!isMutuallyCompatible(a, b)) continue
+                    if (usedPairs.has(pairKey(a, b))) continue
+
+                    newPairs.push([a, b])
+                    usedInFallback.add(a)
+                    usedInFallback.add(b)
+                    break
+                }
+            }
+
+            return [...existingPairs, ...newPairs]
+        }
+
         // Create dates using stable matching (women propose) per time slot
         let totalDates = 0
-        const createdDates: Array<{ participant1: string; participant2: string; timeSlot: number }> = []
+        const createdDates: Array<{ participant1: string; participant2: string; timeSlot: number; participant1Id: string; participant2Id: string }> = []
+        const unmatchedBySlot: Record<number, string[]> = {}
 
-        for (let timeSlot = 1; timeSlot <= 7; timeSlot++) {
+        for (let timeSlot = 1; timeSlot <= 5; timeSlot++) {
             console.log(`\n--- Time Slot ${timeSlot} ---`)
 
-            const pairs = stableMatchForSlot(timeSlot)
+            const pairs = addFallbackPairs(stableMatchForSlot(timeSlot))
 
             for (const [participant1Id, participant2Id] of pairs) {
                 const p1 = participantMap.get(participant1Id)
@@ -199,15 +234,39 @@ export async function POST(request: Request) {
                         participant1: p1.name,
                         participant2: p2.name,
                         timeSlot,
+                        participant1Id,
+                        participant2Id,
                     })
                 } catch (err) {
                     console.error(`Failed to create date:`, err)
                 }
             }
+
+            const matchedIds = new Set<string>()
+            pairs.forEach(([participant1Id, participant2Id]) => {
+                matchedIds.add(participant1Id)
+                matchedIds.add(participant2Id)
+            })
+            unmatchedBySlot[timeSlot] = participants
+                .filter(p => !matchedIds.has(p.id))
+                .map(p => p.name)
         }
 
         console.log(`\n=== DATE GENERATION COMPLETE ===`)
         console.log(`Total dates created: ${totalDates}`)
+
+        // Identify unmatched participants
+        const dateCounts: Record<string, number> = {}
+        participants.forEach(p => {
+            dateCounts[p.id] = 0
+        })
+        createdDates.forEach(d => {
+            dateCounts[d.participant1Id] = (dateCounts[d.participant1Id] || 0) + 1
+            dateCounts[d.participant2Id] = (dateCounts[d.participant2Id] || 0) + 1
+        })
+        const unmatchedParticipants = participants
+            .filter(p => (dateCounts[p.id] || 0) === 0)
+            .map(p => p.name)
 
         // Generate CSV content
         const csvHeaders = ['Time Slot', 'Participant 1', 'Participant 2']
@@ -216,16 +275,40 @@ export async function POST(request: Request) {
             d.participant1,
             d.participant2
         ])
-        const csvContent = [
+        const csvLines = [
             csvHeaders.join(','),
             ...csvRows.map(row => row.map(cell => `"${cell}"`).join(','))
-        ].join('\n')
+        ]
+        if (unmatchedParticipants.length > 0) {
+            csvLines.push('')
+            csvLines.push('Unmatched Participants (All Slots)')
+            unmatchedParticipants.forEach(name => {
+                csvLines.push(`"${name}"`)
+            })
+        }
+
+        csvLines.push('')
+        csvLines.push('Unmatched Participants By Time Slot')
+        for (let timeSlot = 1; timeSlot <= 5; timeSlot++) {
+            csvLines.push(`Time Slot ${timeSlot}`)
+            const names = unmatchedBySlot[timeSlot] || []
+            if (names.length === 0) {
+                csvLines.push('"(none)"')
+                continue
+            }
+            names.forEach(name => {
+                csvLines.push(`"${name}"`)
+            })
+        }
+        const csvContent = csvLines.join('\n')
 
         return NextResponse.json({
             success: true,
             datesCreated: totalDates,
             message: `Successfully generated ${totalDates} dates!`,
             dates: createdDates,
+            unmatchedParticipants,
+            unmatchedBySlot,
             csvContent,
         })
     } catch (error) {
