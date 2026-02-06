@@ -5,7 +5,6 @@ const sampleData = [
     {
         'Name': 'John Smith',
         'Email Address': 'john@example.com',
-        'Age': 28,
         'Sex': 'male',
         'Partner sex preference': 'female',
         'About Me': 'Outgoing, love hiking and travel. Software engineer by day, adventurer on weekends.',
@@ -16,7 +15,6 @@ const sampleData = [
     {
         'Name': 'Sarah Jones',
         'Email Address': 'sarah@example.com',
-        'Age': 26,
         'Sex': 'female',
         'Partner sex preference': 'male',
         'About Me': 'Creative designer, passionate about art and coffee. Always up for a good conversation.',
@@ -27,7 +25,6 @@ const sampleData = [
     {
         'Name': 'Mike Davis',
         'Email Address': 'mike@example.com',
-        'Age': 30,
         'Sex': 'male',
         'Partner sex preference': 'female',
         'About Me': 'Tech enthusiast, coffee lover, startup founder. Into board games and sci-fi.',
@@ -38,7 +35,6 @@ const sampleData = [
     {
         'Name': 'Emma Wilson',
         'Email Address': 'emma@example.com',
-        'Age': 27,
         'Sex': 'female',
         'Partner sex preference': 'male',
         'About Me': 'Yoga instructor, plant-based foodie, love yoga and wellness. Always seeking balance.',
@@ -49,7 +45,6 @@ const sampleData = [
     {
         'Name': 'Alex Chen',
         'Email Address': 'alex@example.com',
-        'Age': 29,
         'Sex': 'male',
         'Partner sex preference': 'female',
         'About Me': 'Musician, music producer. Love live music and creating new sounds.',
@@ -60,7 +55,6 @@ const sampleData = [
     {
         'Name': 'Lisa Anderson',
         'Email Address': 'lisa@example.com',
-        'Age': 25,
         'Sex': 'female',
         'Partner sex preference': 'male',
         'About Me': 'Marketing professional, fitness enthusiast. Love running and trying new restaurants.',
@@ -79,7 +73,6 @@ XLSX.utils.book_append_sheet(wb, ws, 'Participants');
 ws['!cols'] = [
     { wch: 15 },  // Name
     { wch: 20 },  // Email Address
-    { wch: 8 },   // Age
     { wch: 10 },  // Sex
     { wch: 25 },  // Partner sex preference
     { wch: 35 },  // About Me

@@ -45,7 +45,17 @@ export async function GET(request: Request) {
         // Get matches for this participant (ordered by rank)
         const matches = await prisma.match.findMany({
             where: { fromId: participant.id },
-            include: { to: true },
+            include: {
+                to: {
+                    select: {
+                        id: true,
+                        name: true,
+                        aboutMe: true,
+                        lookingFor: true,
+                        personality: true,
+                    },
+                },
+            },
             orderBy: { rank: 'asc' },
         })
 

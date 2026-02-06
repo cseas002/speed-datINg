@@ -89,7 +89,7 @@ The app should now be running at `http://localhost:3000`
    - The allowed admin email is read from `ADMIN_EMAIL` in `.env.local`
 
 2. **Upload Excel File**:
-   - Prepare Excel with columns: Name, Email, Age, Sex, Partner sex preference, About Me, Looking For, Personality, Arrived
+   - Prepare Excel with columns: Name, Email, Sex, Partner sex preference, About Me, Looking For, Personality, Arrived
    - Only participants with "Arrived: Yes" are imported
    - Upload the file through admin dashboard
 
@@ -111,7 +111,7 @@ The app should now be running at `http://localhost:3000`
    - Participants typically receive a temporary password from the admin
 
 2. **View Matches**: See your top 7 matches ranked by AI
-   - Each match shows: name, age, about them, what they want
+   - Each match shows: name, about them, what they want
    - If admin published rankings, see WHY you were matched
    - Matches shown only after admin runs matching
 
@@ -133,7 +133,6 @@ The app should now be running at `http://localhost:3000`
 |--------|------|---------|-------|
 | Name | Text | "John Smith" | Required |
 | Email | Text | "john@example.com" | Must be unique |
-| Age | Number | 28 | Required |
 | Sex | Text | "male" or "female" | Case-insensitive |
 | Partner sex preference | Text | "female" or "male" | **Used for matching** |
 | About Me | Text | "I'm outgoing, love hiking..." | Description and personality |
@@ -144,10 +143,10 @@ The app should now be running at `http://localhost:3000`
 ### Sample Excel Data
 
 ```
-Name,Email,Age,Sex,Partner sex preference,About Me,Looking For,Personality,Arrived
-John Smith,john@example.com,28,male,female,"Outgoing, loves hiking and travel","Someone adventurous and kind","ENFP, Extroverted",Yes
-Sarah Jones,sarah@example.com,26,female,male,"Creative designer, passionate about art","Genuine connection, shared interests","INFJ, Intuitive",Yes
-Mike Davis,mike@example.com,30,male,female,"Tech enthusiast, coffee lover","Intelligent and kind person","INTP, Logical",No
+Name,Email,Sex,Partner sex preference,About Me,Looking For,Personality,Arrived
+John Smith,john@example.com,male,female,"Outgoing, loves hiking and travel","Someone adventurous and kind","ENFP, Extroverted",Yes
+Sarah Jones,sarah@example.com,female,male,"Creative designer, passionate about art","Genuine connection, shared interests","INFJ, Intuitive",Yes
+Mike Davis,mike@example.com,male,female,"Tech enthusiast, coffee lover","Intelligent and kind person","INTP, Logical",No
 ```
 
 ---
@@ -173,7 +172,7 @@ Mike Davis,mike@example.com,30,male,female,"Tech enthusiast, coffee lover","Inte
 
 ### Participant
 ```
-id, email (unique), name, age, sex, partnerSexPref
+id, email (unique), name, sex, partnerSexPref
 aboutMe, lookingFor, personality, arrived
 ```
 
@@ -212,7 +211,7 @@ id, email, token (unique), expiresAt
 
 ### No participants imported
 - **Cause**: Excel has wrong column names or "Arrived" column not recognized
-- **Fix**: Verify column names match exactly (Name, Email, Age, Sex, Partner sex preference, About Me, Looking For, Personality, Arrived)
+- **Fix**: Verify column names match exactly (Name, Email, Sex, Partner sex preference, About Me, Looking For, Personality, Arrived)
 
 ---
 

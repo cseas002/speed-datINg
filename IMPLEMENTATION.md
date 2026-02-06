@@ -51,7 +51,7 @@
 - `/auth/callback` - Login token verification
 
 ### Excel Template
-- **Required Columns**: Name, Email, Age, Sex, Partner sex preference, About Me, Looking For, Personality, Arrived
+- **Required Columns**: Name, Email, Sex, Partner sex preference, About Me, Looking For, Personality, Arrived
 - **Filtering**: Only participants with "Arrived: Yes" are matched
 - **Matching Logic**: Respects sex preferences for both sides
 
@@ -150,7 +150,6 @@ npm run dev
 Ensure your Excel has these exact columns (case-sensitive):
 - **Name** - Participant full name
 - **Email** - Unique email address
-- **Age** - Numeric age
 - **Sex** - "male" or "female"
 - **Partner sex preference** - "male" or "female" (used for matching!)
 - **About Me** - Self description and traits

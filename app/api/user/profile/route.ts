@@ -39,7 +39,6 @@ export async function GET() {
                 id: user.id,
                 name: user.name,
                 email: user.email,
-                age: user.age,
                 sex: user.sex,
                 partnerSexPref: user.partnerSexPref,
                 aboutMe: user.aboutMe,

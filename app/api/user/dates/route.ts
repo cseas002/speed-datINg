@@ -30,8 +30,18 @@ export async function GET() {
                 OR: [{ participant1Id: participant.id }, { participant2Id: participant.id }],
             },
             include: {
-                participant1: true,
-                participant2: true,
+                participant1: {
+                    select: {
+                        id: true,
+                        name: true,
+                    },
+                },
+                participant2: {
+                    select: {
+                        id: true,
+                        name: true,
+                    },
+                },
             },
             orderBy: { timeSlot: 'asc' },
         })

@@ -11,7 +11,6 @@ model Participant {
     id             String   @id @default(cuid())
     email          String   @unique
     name           String
-    age            Int
     sex            String // "male" or "female"
     partnerSexPref String[] // array of ["male"] or ["female"] or ["male", "female"]
     aboutMe        String   @db.Text

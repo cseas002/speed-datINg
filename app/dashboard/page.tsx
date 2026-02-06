@@ -8,7 +8,6 @@ import Image from 'next/image'
 interface Participant {
     id: string
     name: string
-    age: number
     sex: string
     partnerSexPref: string[]
     aboutMe: string
@@ -34,8 +33,6 @@ interface UserRanking {
 interface DateParticipant {
     id: string
     name: string
-    age: number
-    sex: string
 }
 
 interface DateEntry {
@@ -418,11 +415,7 @@ export default function Dashboard() {
                                     <p className="text-lg font-semibold text-gray-800">{user.name}</p>
                                 </div>
                                 <div>
-                                    <p className="text-sm text-gray-600">Age</p>
-                                    <p className="text-lg font-semibold text-gray-800">{user.age}</p>
-                                </div>
-                                <div>
-                                    <p className="text-sm text-gray-600">Gender</p>
+                                    <p className="text-sm text-gray-600">Sex</p>
                                     <p className="text-lg font-semibold text-gray-800 capitalize">{user.sex}</p>
                                 </div>
                                 <div>
@@ -465,7 +458,6 @@ export default function Dashboard() {
                                         <div className="flex justify-between items-start mb-4">
                                             <div>
                                                 <h3 className="text-2xl font-bold text-gray-800">{match.to.name}</h3>
-                                                <p className="text-gray-600">{match.to.age} years old • {match.to.sex}</p>
                                             </div>
                                             <div className="text-right">
                                                 <p className="text-3xl font-bold text-pink-600">#{match.rank}</p>
@@ -510,7 +502,6 @@ export default function Dashboard() {
                                                 <h3 className="text-xl font-bold text-gray-800">
                                                     {getTimeSlotLabel(date.timeSlot)} Date: {partner.name}
                                                 </h3>
-                                                <p className="text-gray-600">{partner.age} years old</p>
                                             </div>
                                             <div className="flex items-center gap-4">
                                                 <span className="text-sm text-gray-600">Rating</span>

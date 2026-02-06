@@ -42,7 +42,6 @@ export async function POST(request: Request) {
         }) as {
             Name: string
             'Email Address': string
-            Age: string
             Sex: string
             'Partner Sex Preference': string
             'About Me': string
@@ -92,7 +91,6 @@ export async function POST(request: Request) {
                     data: {
                         name: row.Name || 'Unknown',
                         email: row['Email Address'],
-                        age: parseInt(row.Age) || 0,
                         sex: row.Sex?.toLowerCase() || 'other',
                         partnerSexPref: sexPrefs.length > 0 ? sexPrefs : ['other'],
                         aboutMe: row['About Me'] || '',

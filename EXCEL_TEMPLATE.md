@@ -6,7 +6,6 @@ This Excel file should contain the following columns:
 |--------|------|-------------|---------|
 | Name | Text | Participant's full name | John Smith |
 | Email | Text | Participant's email address | john@example.com |
-| Age | Number | Participant's age | 28 |
 | Sex | Text | Participant's sex | male / female |
 | Partner sex preference | Text | Preferred sex of dating partner | female / male |
 | About Me | Text | Self description and personality traits | I'm outgoing, love hiking and travel. Career-driven professional. |
@@ -25,8 +24,8 @@ This Excel file should contain the following columns:
 ## Sample Data
 
 ```
-Name,Email,Age,Sex,Partner sex preference,About Me,Looking For,Personality,Arrived
-John Smith,john@example.com,28,male,female,I'm outgoing and love hiking,Someone adventurous,ENFP,Yes
-Sarah Jones,sarah@example.com,26,female,male,Creative designer passionate about art,Genuine connection with shared interests,INFJ,Yes
-Mike Davis,mike@example.com,30,male,female,Tech enthusiast and coffee lover,Intelligent and kind person,INTP,No
+Name,Email,Sex,Partner sex preference,About Me,Looking For,Personality,Arrived
+John Smith,john@example.com,male,female,I'm outgoing and love hiking,Someone adventurous,ENFP,Yes
+Sarah Jones,sarah@example.com,female,male,Creative designer passionate about art,Genuine connection with shared interests,INFJ,Yes
+Mike Davis,mike@example.com,male,female,Tech enthusiast and coffee lover,Intelligent and kind person,INTP,No
 ```
