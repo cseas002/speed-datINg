@@ -46,6 +46,9 @@ function cleanResponseContent(content: string): string {
 export async function POST(request: Request) {
     try {
         const USE_GEMINI = true
+        const GEMINI_INPUT_TOKEN_LIMIT = 15000
+        const RATE_LIMIT_PER_MIN = 28
+        const MIN_DELAY_MS = Math.ceil(60000 / RATE_LIMIT_PER_MIN)
         const isAdmin = await verifyAdminCookie()
         if (!isAdmin) {
             return NextResponse.json(
@@ -94,6 +97,46 @@ export async function POST(request: Request) {
             : null
 
         const gemini = USE_GEMINI ? new GoogleGenAI({ apiKey: GEMINI_API_KEY || '' }) : null
+
+        let lastRequestAt = 0
+        const tokenWindow: Array<{ time: number; tokens: number }> = []
+
+        const delay = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms))
+
+        const waitForRequestSlot = async () => {
+            const now = Date.now()
+            const waitMs = Math.max(0, MIN_DELAY_MS - (now - lastRequestAt))
+            if (waitMs > 0) {
+                await delay(waitMs)
+            }
+            lastRequestAt = Date.now()
+        }
+
+        const waitForTokenBudget = async (tokens: number) => {
+            const budgetTokens = Math.min(tokens, GEMINI_INPUT_TOKEN_LIMIT)
+            if (tokens > GEMINI_INPUT_TOKEN_LIMIT) {
+                console.warn(
+                    `Estimated input tokens ${tokens} exceed limit ${GEMINI_INPUT_TOKEN_LIMIT}; proceeding with backoff.`
+                )
+            }
+
+            while (true) {
+                const now = Date.now()
+                while (tokenWindow.length > 0 && now - tokenWindow[0].time >= 60000) {
+                    tokenWindow.shift()
+                }
+
+                const used = tokenWindow.reduce((sum, entry) => sum + entry.tokens, 0)
+                if (used + budgetTokens <= GEMINI_INPUT_TOKEN_LIMIT) {
+                    tokenWindow.push({ time: Date.now(), tokens: budgetTokens })
+                    return
+                }
+
+                const oldest = tokenWindow[0]
+                const waitMs = oldest ? Math.max(0, 60000 - (now - oldest.time)) : 1000
+                await delay(waitMs)
+            }
+        }
 
         // Process each participant
         let totalMatches = 0
@@ -161,6 +204,18 @@ Return as JSON array:
   ...
 ]`
 
+            const estimateTokens = (text: string) => Math.ceil(text.length / 4)
+
+            const extractRetryDelayMs = (error: unknown) => {
+                const message = error instanceof Error ? error.message : ''
+                const match = message.match(/retry in\s+([0-9.]+)s/i)
+                if (match && match[1]) {
+                    const seconds = Number.parseFloat(match[1])
+                    if (!Number.isNaN(seconds)) return Math.ceil(seconds * 1000)
+                }
+                return 12_000
+            }
+
             try {
                 const maxAttempts = 3
                 let matches: Array<{ id: string; rank: number; reason: string }> = []
@@ -169,13 +224,32 @@ Return as JSON array:
                     let content: string | null | undefined
 
                     if (USE_GEMINI && gemini) {
-                        const response = await gemini.models.generateContent({
-                            model: 'gemma-3-27b-it',
-                            contents:
-                                'You are a speed dating expert. Return only valid JSON array without code blocks or formatting. Use the IDs provided.\n\n' +
-                                prompt,
-                        })
-                        content = response.text ?? undefined
+                        const modelPrompt =
+                            'You are a speed dating expert. Return only valid JSON array without code blocks or formatting. Use the IDs provided.\n\n' +
+                            prompt
+
+                        const estimatedTokens = estimateTokens(modelPrompt)
+                        await waitForRequestSlot()
+                        await waitForTokenBudget(estimatedTokens)
+
+                        try {
+                            const response = await gemini.models.generateContent({
+                                model: 'gemma-3-27b-it',
+                                contents: modelPrompt,
+                            })
+                            content = response.text ?? undefined
+                        } catch (error) {
+                            const status = (error as { status?: number })?.status
+                            if (status === 429 && attempt < maxAttempts) {
+                                const delayMs = extractRetryDelayMs(error)
+                                console.warn(
+                                    `Rate limited for ${person.name}, retrying in ${Math.ceil(delayMs / 1000)}s (attempt ${attempt})`
+                                )
+                                await new Promise((resolve) => setTimeout(resolve, delayMs))
+                                continue
+                            }
+                            throw error
+                        }
                     } else if (openai) {
                         const completion = await openai.chat.completions.create({
                             model: 'tngtech/deepseek-r1t2-chimera:free',
@@ -323,20 +397,8 @@ Return as JSON array:
             }
         }
 
-        if (USE_GEMINI) {
-            const RATE_LIMIT_PER_MIN = 30
-            const MIN_DELAY_MS = Math.ceil(60000 / RATE_LIMIT_PER_MIN)
-            const tasks = participants.map((person, index) =>
-                (async () => {
-                    await new Promise(resolve => setTimeout(resolve, index * MIN_DELAY_MS))
-                    await processPerson(person)
-                })()
-            )
-            await Promise.all(tasks)
-        } else {
-            for (const person of participants) {
-                await processPerson(person)
-            }
+        for (const person of participants) {
+            await processPerson(person)
         }
 
         console.log(`\n=== MATCHING COMPLETE ===`)

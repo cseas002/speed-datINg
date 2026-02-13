@@ -39,16 +39,7 @@ export async function POST(request: Request) {
         const data = parse(text, {
             columns: true,
             skip_empty_lines: true,
-        }) as {
-            Name: string
-            'Email Address': string
-            Sex: string
-            'Partner Sex Preference': string
-            'About Me': string
-            'Looking For': string
-            Personality: string
-            Arrived: string
-        }[]
+        }) as Record<string, string>[]
 
         if (!data || data.length === 0) {
             return NextResponse.json(
@@ -77,25 +68,92 @@ export async function POST(request: Request) {
         // Clear existing participants
         await prisma.participant.deleteMany({})
 
+        const getField = (row: Record<string, string>, keys: string[]) => {
+            for (const key of keys) {
+                const value = row[key]
+                if (typeof value === 'string' && value.trim()) {
+                    return value.trim()
+                }
+            }
+            return ''
+        }
+
+        const normalizeSex = (value: string) => {
+            const v = value.toLowerCase()
+            if (/\b(woman|female|women)\b/.test(v)) return 'female'
+            if (/\b(man|male|men)\b/.test(v)) return 'male'
+            return 'other'
+        }
+
+        const parsePartnerPrefs = (value: string) => {
+            const tokens = value
+                .split(',')
+                .map((s) => s.trim().toLowerCase())
+                .filter((s) => s)
+
+            const prefs = new Set<string>()
+            for (const token of tokens) {
+                if (/\b(woman|female|women)\b/.test(token)) prefs.add('female')
+                if (/\b(man|male|men)\b/.test(token)) prefs.add('male')
+            }
+
+            return prefs.size > 0 ? Array.from(prefs) : ['other']
+        }
+
+        const parseTimestamp = (value: string) => {
+            const time = Date.parse(value)
+            return Number.isNaN(time) ? 0 : time
+        }
+
+        const uniqueByEmail = new Map<string, Record<string, string>>()
+        for (const row of arrivedParticipants) {
+            const email = getField(row, ['Email Address', 'Email'])
+            if (!email) continue
+
+            const key = email.toLowerCase()
+            const existing = uniqueByEmail.get(key)
+
+            if (!existing) {
+                uniqueByEmail.set(key, row)
+                continue
+            }
+
+            const currentTime = parseTimestamp(getField(row, ['Timestamp']))
+            const existingTime = parseTimestamp(getField(existing, ['Timestamp']))
+
+            if (currentTime >= existingTime) {
+                uniqueByEmail.set(key, row)
+            }
+        }
+
+        const rows = Array.from(uniqueByEmail.values())
+
         // Insert participants
         const created = await Promise.all(
-            arrivedParticipants.map((row) => {
-                // Parse sex preferences - handle "Male, Female" format
-                const sexPrefStr = row['Partner Sex Preference'] || ''
-                const sexPrefs = sexPrefStr
-                    .split(',')
-                    .map((s) => s.trim().toLowerCase())
-                    .filter((s) => s)
+            rows.map((row) => {
+                const name = getField(row, ['Name', '❤️ Name ❤️'])
+                const email = getField(row, ['Email Address', 'Email'])
+                const sexRaw = getField(row, ['Sex', '❤️ Gender ❤️'])
+                const partnerPrefRaw = getField(row, [
+                    'Partner Sex Preference',
+                    'Partner sex preference',
+                    '❤️ Preference in Partners ❤️',
+                ])
+                const aboutMe = getField(row, ['About Me', '❤️ About You ❤️'])
+                const lookingFor = getField(row, ['Looking For', '❤️ Looking For ❤️'])
+                const personality = getField(row, ['Personality', '❤️ Personality ❤️'])
+
+                const sexPrefs = parsePartnerPrefs(partnerPrefRaw)
 
                 return prisma.participant.create({
                     data: {
-                        name: row.Name || 'Unknown',
-                        email: row['Email Address'],
-                        sex: row.Sex?.toLowerCase() || 'other',
+                        name: name || 'Unknown',
+                        email,
+                        sex: normalizeSex(sexRaw),
                         partnerSexPref: sexPrefs.length > 0 ? sexPrefs : ['other'],
-                        aboutMe: row['About Me'] || '',
-                        lookingFor: row['Looking For'] || '',
-                        personality: row.Personality || '',
+                        aboutMe,
+                        lookingFor,
+                        personality,
                         arrived: true,
                     },
                 })
