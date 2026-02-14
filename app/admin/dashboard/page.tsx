@@ -11,6 +11,11 @@ interface Participant {
     sex: string
 }
 
+interface CustomDatePair {
+    participant1Id: string
+    participant2Id: string
+}
+
 export default function AdminDashboard() {
     const router = useRouter()
     const [step, setStep] = useState<'upload' | 'passwords' | 'matching' | 'publish'>('upload')
@@ -24,6 +29,9 @@ export default function AdminDashboard() {
     const [isPublished, setIsPublished] = useState(false)
     const [participants, setParticipants] = useState<Participant[]>([])
     const [selectedParticipants, setSelectedParticipants] = useState<Set<string>>(new Set())
+    const [customDates, setCustomDates] = useState<CustomDatePair[]>([])
+    const [customDateP1, setCustomDateP1] = useState('')
+    const [customDateP2, setCustomDateP2] = useState('')
 
     const handleFileUpload = async (e: React.FormEvent<HTMLFormElement>) => {
         e.preventDefault()
@@ -184,7 +192,9 @@ export default function AdminDashboard() {
             const res = await fetch('/api/admin/dates', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({}),
+                body: JSON.stringify({
+                    customDates,
+                }),
             })
 
             const data = await res.json()
@@ -194,7 +204,14 @@ export default function AdminDashboard() {
                 return
             }
 
-            setMessage(`✓ Successfully generated ${data.datesCreated} dates!\n\nDates have been saved to the database and are ready for the event.`)
+            const customDateCount = Array.isArray(customDates) ? customDates.length : 0
+            setMessage(
+                `✓ Successfully generated ${data.datesCreated} dates!\n` +
+                (customDateCount > 0
+                    ? `✓ Guaranteed custom dates: ${customDateCount}\n\n`
+                    : '\n') +
+                'Dates have been saved to the database and are ready for the event.'
+            )
 
             // Download CSV file
             if (data.csvContent) {
@@ -242,6 +259,43 @@ export default function AdminDashboard() {
             setPublishLoading(false)
         }
     }
+
+    const addCustomDate = () => {
+        setError('')
+        if (!customDateP1 || !customDateP2) {
+            setError('Please select two participants for custom date')
+            return
+        }
+        if (customDateP1 === customDateP2) {
+            setError('A custom date needs two different participants')
+            return
+        }
+
+        const exists = customDates.some(
+            (d) =>
+                (d.participant1Id === customDateP1 && d.participant2Id === customDateP2) ||
+                (d.participant1Id === customDateP2 && d.participant2Id === customDateP1)
+        )
+
+        if (exists) {
+            setError('This custom date pair already exists')
+            return
+        }
+
+        setCustomDates((prev) => [
+            ...prev,
+            { participant1Id: customDateP1, participant2Id: customDateP2 },
+        ])
+        setCustomDateP1('')
+        setCustomDateP2('')
+    }
+
+    const removeCustomDate = (index: number) => {
+        setCustomDates((prev) => prev.filter((_, i) => i !== index))
+    }
+
+    const getParticipantName = (id: string) =>
+        participants.find((p) => p.id === id)?.name || id
 
     return (
         <main className="min-h-screen bg-gray-50 py-8">
@@ -365,6 +419,70 @@ export default function AdminDashboard() {
                             </p>
 
                             <div className="space-y-4">
+                                <div className="border border-indigo-200 rounded-lg p-4 bg-indigo-50">
+                                    <h3 className="text-lg font-bold text-indigo-700 mb-2">Add Custom Dates (Guaranteed)</h3>
+                                    <p className="text-sm text-indigo-700 mb-3">
+                                        These pairs are guaranteed when you press Generate Dates.
+                                    </p>
+
+                                    <div className="grid md:grid-cols-3 gap-2 mb-3">
+                                        <select
+                                            value={customDateP1}
+                                            onChange={(e) => setCustomDateP1(e.target.value)}
+                                            className="px-3 py-2 border border-gray-300 rounded-lg text-black bg-white"
+                                        >
+                                            <option value="">Select participant 1</option>
+                                            {participants.map((participant) => (
+                                                <option key={`p1-${participant.id}`} value={participant.id}>
+                                                    {participant.name}
+                                                </option>
+                                            ))}
+                                        </select>
+
+                                        <select
+                                            value={customDateP2}
+                                            onChange={(e) => setCustomDateP2(e.target.value)}
+                                            className="px-3 py-2 border border-gray-300 rounded-lg text-black bg-white"
+                                        >
+                                            <option value="">Select participant 2</option>
+                                            {participants.map((participant) => (
+                                                <option key={`p2-${participant.id}`} value={participant.id}>
+                                                    {participant.name}
+                                                </option>
+                                            ))}
+                                        </select>
+
+                                        <button
+                                            onClick={addCustomDate}
+                                            disabled={datesLoading || participants.length < 2}
+                                            className="bg-indigo-600 hover:bg-indigo-700 disabled:bg-gray-400 text-white font-bold py-2 px-4 rounded-lg transition"
+                                        >
+                                            + Add Custom Date
+                                        </button>
+                                    </div>
+
+                                    {customDates.length > 0 && (
+                                        <div className="space-y-2">
+                                            {customDates.map((pair, index) => (
+                                                <div
+                                                    key={`${pair.participant1Id}-${pair.participant2Id}-${index}`}
+                                                    className="flex items-center justify-between bg-white border border-indigo-100 rounded-lg px-3 py-2"
+                                                >
+                                                    <span className="text-black text-sm">
+                                                        {getParticipantName(pair.participant1Id)} ↔ {getParticipantName(pair.participant2Id)}
+                                                    </span>
+                                                    <button
+                                                        onClick={() => removeCustomDate(index)}
+                                                        className="text-red-600 hover:text-red-700 font-semibold text-sm"
+                                                    >
+                                                        Remove
+                                                    </button>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    )}
+                                </div>
+
                                 <button
                                     onClick={handleGenerateMatches}
                                     disabled={matchesLoading || participants.length === 0}

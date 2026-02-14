@@ -216,8 +216,30 @@ Return as JSON array:
                 return 12_000
             }
 
+            const isRetryableAiError = (error: unknown) => {
+                const status = (error as { status?: number })?.status
+                if (status === 429 || status === 503) return true
+
+                const message = error instanceof Error ? error.message.toLowerCase() : ''
+                return (
+                    message.includes('resource_exhausted') ||
+                    message.includes('quota exceeded') ||
+                    message.includes('unavailable') ||
+                    message.includes('high demand') ||
+                    message.includes('try again later')
+                )
+            }
+
+            const getBackoffDelayMs = (attempt: number, error: unknown) => {
+                const hintedDelay = extractRetryDelayMs(error)
+                const baseDelay = Math.max(hintedDelay, 5000)
+                const exponentialDelay = baseDelay * Math.pow(2, Math.max(0, attempt - 1))
+                const jitter = Math.floor(Math.random() * 1500)
+                return Math.min(120000, exponentialDelay + jitter)
+            }
+
             try {
-                const maxAttempts = 3
+                const maxAttempts = 6
                 let matches: Array<{ id: string; rank: number; reason: string }> = []
 
                 for (let attempt = 1; attempt <= maxAttempts; attempt++) {
@@ -239,11 +261,10 @@ Return as JSON array:
                             })
                             content = response.text ?? undefined
                         } catch (error) {
-                            const status = (error as { status?: number })?.status
-                            if (status === 429 && attempt < maxAttempts) {
-                                const delayMs = extractRetryDelayMs(error)
+                            if (isRetryableAiError(error) && attempt < maxAttempts) {
+                                const delayMs = getBackoffDelayMs(attempt, error)
                                 console.warn(
-                                    `Rate limited for ${person.name}, retrying in ${Math.ceil(delayMs / 1000)}s (attempt ${attempt})`
+                                    `AI temporary failure for ${person.name}, retrying in ${Math.ceil(delayMs / 1000)}s (attempt ${attempt}/${maxAttempts})`
                                 )
                                 await new Promise((resolve) => setTimeout(resolve, delayMs))
                                 continue

@@ -21,6 +21,9 @@ export async function POST(request: Request) {
             )
         }
 
+        const body = await request.json().catch(() => ({}))
+        const customDatesInput = Array.isArray(body?.customDates) ? body.customDates : []
+
         // Get all participants
         const participants = await prisma.participant.findMany({
             orderBy: { name: 'asc' }
@@ -50,6 +53,7 @@ export async function POST(request: Request) {
         })
 
         const participantMap = new Map(participants.map(p => [p.id, p]))
+        const participantIds = new Set(participants.map((p) => p.id))
         const totalSlots = 5
         const normalizeSex = (value: string | null | undefined) =>
             (value || '').trim().toLowerCase()
@@ -112,6 +116,70 @@ export async function POST(request: Request) {
 
         const isAllowedInSlot = (id: string, timeSlot: number) =>
             timeSlot >= earliestAllowedSlot(id)
+
+        const normalizedCustomPairs: Array<[string, string]> = []
+        const seenCustomPairs = new Set<string>()
+        for (const item of customDatesInput) {
+            const participant1Id = typeof item?.participant1Id === 'string' ? item.participant1Id : ''
+            const participant2Id = typeof item?.participant2Id === 'string' ? item.participant2Id : ''
+
+            if (!participant1Id || !participant2Id || participant1Id === participant2Id) {
+                return NextResponse.json(
+                    { error: 'Invalid custom date pair provided' },
+                    { status: 400 }
+                )
+            }
+
+            if (!participantIds.has(participant1Id) || !participantIds.has(participant2Id)) {
+                return NextResponse.json(
+                    { error: 'Custom date includes unknown participant' },
+                    { status: 400 }
+                )
+            }
+
+            if (!isMutuallyCompatible(participant1Id, participant2Id)) {
+                return NextResponse.json(
+                    { error: 'Custom date pair is not mutually compatible' },
+                    { status: 400 }
+                )
+            }
+
+            const key = pairKey(participant1Id, participant2Id)
+            if (seenCustomPairs.has(key)) {
+                continue
+            }
+            seenCustomPairs.add(key)
+            normalizedCustomPairs.push([participant1Id, participant2Id])
+        }
+
+        const forcedPairsBySlot: Record<number, Array<[string, string]>> = {}
+        const slotOccupied: Record<number, Set<string>> = {}
+        for (let slot = 1; slot <= totalSlots; slot++) {
+            forcedPairsBySlot[slot] = []
+            slotOccupied[slot] = new Set<string>()
+        }
+
+        for (const [participant1Id, participant2Id] of normalizedCustomPairs) {
+            let assignedSlot: number | null = null
+            for (let slot = totalSlots; slot >= 1; slot--) {
+                const occupied = slotOccupied[slot]
+                if (!occupied.has(participant1Id) && !occupied.has(participant2Id)) {
+                    assignedSlot = slot
+                    break
+                }
+            }
+
+            if (!assignedSlot) {
+                return NextResponse.json(
+                    { error: 'Unable to schedule all custom dates without slot conflicts' },
+                    { status: 400 }
+                )
+            }
+
+            forcedPairsBySlot[assignedSlot].push([participant1Id, participant2Id])
+            slotOccupied[assignedSlot].add(participant1Id)
+            slotOccupied[assignedSlot].add(participant2Id)
+        }
 
         const getRemainingOptionsCount = (id: string, eligibleIds: Set<string>) => {
             let count = 0
@@ -285,7 +353,19 @@ export async function POST(request: Request) {
         for (let timeSlot = 1; timeSlot <= totalSlots; timeSlot++) {
             console.log(`\n--- Time Slot ${timeSlot} ---`)
 
-            const pairs = addFallbackPairs(buildPairsForSlot(timeSlot, dateCounts), dateCounts, timeSlot)
+            const forcedPairs = forcedPairsBySlot[timeSlot] || []
+            const blockedIds = new Set<string>()
+            for (const [participant1Id, participant2Id] of forcedPairs) {
+                blockedIds.add(participant1Id)
+                blockedIds.add(participant2Id)
+            }
+
+            const autoPairs = addFallbackPairs(buildPairsForSlot(timeSlot, dateCounts), dateCounts, timeSlot)
+                .filter(([participant1Id, participant2Id]) =>
+                    !blockedIds.has(participant1Id) && !blockedIds.has(participant2Id)
+                )
+
+            const pairs = [...forcedPairs, ...autoPairs]
 
             for (const [participant1Id, participant2Id] of pairs) {
                 const p1 = participantMap.get(participant1Id)
@@ -380,6 +460,7 @@ export async function POST(request: Request) {
             datesCreated: totalDates,
             message: `Successfully generated ${totalDates} dates!`,
             dates: createdDates,
+            customDatesScheduled: normalizedCustomPairs.length,
             unmatchedParticipants,
             unmatchedBySlot,
             csvContent,
