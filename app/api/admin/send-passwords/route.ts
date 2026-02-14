@@ -67,12 +67,13 @@ export async function POST(request: Request) {
 
         // Generate magic links and passwords, send emails
         const results = []
+        const requestOrigin = new URL(request.url).origin
+        const isLocalRequest = /localhost|127\.0\.0\.1/.test(requestOrigin)
         const configuredBaseUrl =
-            process.env.NEXT_PUBLIC_BASE_URL ||
-            process.env.BASE_URL ||
-            (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : '') ||
-            'https://speed-dating-in.vercel.app'
+            process.env.EMAIL_BASE_URL ||
+            (isLocalRequest ? requestOrigin : 'https://speed-dating-in.vercel.app')
         const baseUrl = configuredBaseUrl.replace(/\/+$/, '')
+        console.log(`Using email base URL: ${baseUrl}`)
 
         for (const participant of participants) {
             // Create magic link and password
